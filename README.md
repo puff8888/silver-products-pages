@@ -128,23 +128,34 @@ wrangler pages deploy dist --project-name bruno-silver-products
 
 ⚠️ **ก่อน deploy ควรตั้ง env ให้ครบ** (ดูหัวข้อ 5) เพราะค่า pixel ถูกฝังตอน build
 
-**สถานะ Git repo ที่ผูกอยู่ (สำคัญ)**
+**สถานะ Git repo — ซ่อมแล้ว ✅**
 
-Pages project นี้ผูกกับ `github.com/puff8888/silver-products-pages` (branch `main`) และ auto-deploy on push
-แต่ **build ล่าสุดล้มเหลว** จาก build log จริง:
+Pages project ผูกกับ `github.com/puff8888/silver-products-pages` (branch `main`) และ auto-deploy on push
+
+| | ก่อน | หลัง |
+|---|---|---|
+| เนื้อหา repo | **ว่างเปล่า** (0 ไฟล์ — มีแค่ commit สร้าง/ลบ `.gitignore`) | ซอร์สครบ 56 ไฟล์ (`package.json`, `src/`, `functions/`, `wrangler.toml`) |
+| ผล build | `No Wrangler configuration file found` → `No build command specified` → `No functions dir at /functions` → `Error: Output directory "dist" not found` → **Failed** | `queued:success + initialize:success + clone_repo:success + build:success + deploy:success` |
+| commit | `7a8a330` (Delete .gitignore) — ล้มเหลว | `36f87af` — สำเร็จ และ production เสิร์ฟเวอร์ชันนี้แล้ว |
+
+รายละเอียด: repo เดิมมี `main` ที่ commit `7a8a330` โดย **tree ว่างเปล่า** จึงไม่มีอะไรให้ทับ
+ผม merge ประวัติเดิมไว้ (`git merge origin/main --allow-unrelated-histories`) แล้ว push ขึ้นไป
+การ push ครั้งนี้ trigger auto-deploy ทันที → `https://bruno-silver-products.pages.dev` จึงเป็นเวอร์ชันที่แก้แล้ว
+
+**ยืนยันบน production หลัง deploy**
 
 ```
-Cloning repository... HEAD is now at 7a8a330 Delete .gitignore
-No Wrangler configuration file found. Continuing.
-No build command specified. Skipping build step.
-Note: No functions dir at /functions found. Skipping.
-Error: Output directory "dist" not found.
-Failed: build output directory not found
+chunk: /assets/index-Cskkncgp.js (build ใหม่ — env ว่างเหมือน production)
+/api/does-not-exist        -> 404 application/json
+/api/orders?id=SS-974360   -> 200 {"order_id":"SS-974360","customer_name_masked":"QA••••••",...}
+/api/dashboard?range=7d    -> sessions 54 | cr 1.9% | cr_basis "orders / distinct sessions" | line null
+                              funnel: ViewContent → AddToCart 2->6  rate=null note=later_stage_higher (ไม่ clamp เป็น 100% แล้ว)
+dashboard (เบราว์เซอร์)     -> revenue ฿2,990 จริง | LINE "—" | ไม่มีเลขปลอม | มีส่วน Affiliate แยกแหล่งข้อมูล
+/order SS-974360          -> Order #SS-974360 (Pending) · garbage -> แจ้งรูปแบบผิด · ไม่มี BS-12345
+/settings                 -> input 0, button 0, "Reference only" + วิธีตั้งค่า
+/ads                      -> 4 การ์ด "ปิดอยู่ · Not configured" (ไม่โชว์ placeholder เป็น ID จริง)
+third-party pixel requests -> []        page errors -> []        "t.push is not a function" -> ไม่พบ
 ```
-
-→ repo บน GitHub **ไม่มี `functions/`, ไม่มี build command, ไม่มี `dist`** ดังนั้น push ขึ้น `main` จะ deploy ไม่ได้
-จนกว่าจะ push ซอร์สชุดนี้ (ที่มี `package.json`, `functions/`, `wrangler.toml` ครบ) ขึ้นไปแทน
-**และ ณ ตอนนี้ production ยังเสิร์ฟ deployment เก่า (8 ต.ค. 14:40 UTC, direct upload) อยู่**
 
 ---
 
@@ -192,7 +203,29 @@ if (!route[request.method]) {
 
 (ปัจจุบัน `GET /api/aff/referrals` และ path ที่ไม่รู้จักใด ๆ คืน `501 {"error":"not_implemented"}`)
 
-### 6.2 สมมติฐานที่ควรตรวจ
+### 6.2 ข้อมูลเก่าที่ยัง mislabel อยู่ (17 แถว) — ต้องให้คุณตัดสินใจ
+
+การแก้ข้อ 3 ทำให้ **event ใหม่** บันทึกช่องทางจริง แต่แถวที่บันทึกไว้ก่อน deploy ยังมีค่า `channel`
+เป็นชื่อหน้าอยู่ในตาราง `events`:
+
+| channel | จำนวน | ช่วงเวลา |
+|---|---|---|
+| `Checkout` | 10 rows | 2026-10-08 10:30 .. 2026-10-09 21:34 |
+| `PDP` | 7 rows | 2026-10-08 10:30 .. 2026-10-09 21:34 |
+
+ผลคือตาราง Sales Attribution **ยังมีแถวชื่อ Checkout/PDP อยู่** (รวม Purchase ฿2,990 ที่รายงานเดิมพบ)
+จนกว่าจะจัดการ — **กู้ช่องทางจริงของแถวเก่าไม่ได้** เพราะตอนนั้นไม่ได้เก็บ UTM/click-id ลง event
+ทางเลือกที่ซื่อสัตย์คือติดป้ายว่าเป็นข้อมูลเก่าที่ไม่รู้ที่มา (ไม่ใช่เดาค่าใหม่):
+
+```sql
+-- ทำเมื่อพร้อมเท่านั้น (แก้ข้อมูล production) — เปลี่ยนชื่อหน้าให้เป็นป้าย "legacy" ที่อ่านแล้วไม่เข้าใจผิด
+UPDATE events SET channel = '(legacy) unknown source'
+WHERE channel IN ('Checkout', 'PDP') AND created_at < '2026-10-09 23:00:00';
+```
+
+ทางเลือกอื่น: ลบแถวเหล่านั้น (ถ้าไม่ต้องการเก็บ), หรือปล่อยไว้แล้วอธิบายในรายงาน
+
+### 6.3 งานอื่นที่ยังเหลือ
 
 - **การ seed ตอน approve**: ตรวจได้แค่ UI ที่บอกว่า "2 carousel SKU templates (Meta + TikTok)" จึง seed
   2 แถวใน `sku_templates` (Meta + TikTok, `is_default = 1`) ส่วนการสร้าง `ad_variants` จาก catalog
