@@ -3,17 +3,24 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useCatalog } from '../context/CatalogContext';
 import LoginModal from './LoginModal';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', match: (p) => p === '/' },
   { to: '/product', label: 'Collection', match: (p) => p.startsWith('/product') },
   { to: '/order', label: 'Track Order', match: (p) => p.startsWith('/order') },
+  { to: '/stores', label: 'Stores', match: (p) => p.startsWith('/stores') },
+  { to: '/sell', label: 'Sell', match: (p) => p.startsWith('/sell') },
 ];
 
 function BrandMark() {
+  // Multi-store: show the resolved store's own brand when there is one.
+  const { store } = useCatalog();
+  const brand = store && store.name ? store.name : 'SILVER SURFACE';
+  const tagline = store && store.slug && store.name ? store.slug : null;
   return (
-    <Link to="/" className="flex items-center gap-2.5 group/brand shrink-0" aria-label="Silver Surface home">
+    <Link to="/" className="flex items-center gap-2.5 group/brand shrink-0" aria-label={`${brand} home`}>
       <div className="flex items-center justify-center size-8 rounded-lg bg-metallic-button text-background shadow-apple-sm border border-silver-400/30
                       group-hover/brand:bg-metallic-button-hover group-hover/brand:shadow-apple group-hover/brand:scale-105
                       transition-all duration-220 ease-apple">
@@ -23,7 +30,8 @@ function BrandMark() {
       </div>
       <span className="font-display font-sans text-[14px] font-extrabold tracking-apple-tight text-foreground
                        group-hover/brand:opacity-80 transition-opacity duration-200 ease-apple hidden xs:inline sm:inline">
-        SILVER SURFACE
+        {brand}
+        {tagline && <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-muted">{tagline}</span>}
       </span>
     </Link>
   );

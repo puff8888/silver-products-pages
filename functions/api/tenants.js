@@ -1,5 +1,5 @@
 import { slugify, isValidSlug } from '../../shared/store.js';
-import { getSessionUser, userStores } from '../../shared/auth.js';
+import { getSessionUser, userStores, canAccessStore } from '../../shared/auth.js';
 
 /**
  * Tenant (store) registry API.
@@ -27,21 +27,33 @@ const json = (body, status = 200) =>
 
 const TENANT_COLUMNS = `
   t.id, t.name, t.slug, t.shopify_domain, t.contact_email, t.status,
+  t.tagline, t.brand_color, t.logo_url, t.is_public, t.plan,
+  t.created_at, t.approved_at,
+  (SELECT count(*) FROM sku_templates s WHERE s.client_id = t.id) AS templates,
+  (SELECT count(*) FROM tenant_credentials c WHERE c.tenant_id = t.id) AS credentials_set
+`;
+
+const TENANT_COLUMNS_LEGACY = `
+  t.id, t.name, t.slug, t.shopify_domain, t.contact_email, t.status,
   t.created_at, t.approved_at,
   (SELECT count(*) FROM sku_templates s WHERE s.client_id = t.id) AS templates
 `;
 
-const TENANT_LIST = `
-  SELECT ${TENANT_COLUMNS}
-  FROM tenants t
-  ORDER BY t.created_at DESC
-`;
-
-const TENANT_BY_ID = `
-  SELECT ${TENANT_COLUMNS}
-  FROM tenants t
-  WHERE t.id = ?
-`;
+/**
+ * Query tenants, tolerating a database that has not had every migration applied
+ * yet: migration 0003 adds the branding columns and tenant_credentials. Without
+ * this, deploying before migrating would 500 the whole store list.
+ */
+async function selectTenants(env, { where = '', binds = [] } = {}) {
+  const build = (cols) => `SELECT ${cols} FROM tenants t ${where} ORDER BY t.created_at DESC`;
+  try {
+    const { results } = await env.DB.prepare(build(TENANT_COLUMNS)).bind(...binds).all();
+    return { results: results || [], migrated: true };
+  } catch (err) {
+    const { results } = await env.DB.prepare(build(TENANT_COLUMNS_LEGACY)).bind(...binds).all();
+    return { results: results || [], migrated: false };
+  }
+}
 
 function newTenantId() {
   return `tnt-${Math.random().toString(36).slice(2, 8)}`;
@@ -58,17 +70,16 @@ export async function onRequestGet(context) {
 
     if (user.role !== 'admin') {
       const mine = await userStores(env, user);
-      const { results } = await env.DB.prepare(
-        `SELECT ${TENANT_COLUMNS}
-           FROM tenants t
-          WHERE t.id IN (${mine.map(() => '?').join(',') || 'NULL'})
-          ORDER BY t.created_at DESC`
-      ).bind(...mine.map((s) => s.id)).all();
-      return json({ tenants: results || [] });
+      const ids = mine.map((s) => s.id);
+      const { results, migrated } = await selectTenants(env, {
+        where: `WHERE t.id IN (${ids.map(() => '?').join(',') || 'NULL'})`,
+        binds: ids,
+      });
+      return json({ tenants: results, migration_0003_applied: migrated });
     }
 
-    const { results } = await env.DB.prepare(TENANT_LIST).all();
-    return json({ tenants: results || [] });
+    const { results, migrated } = await selectTenants(env);
+    return json({ tenants: results, migration_0003_applied: migrated });
   } catch (err) {
     console.error('Tenants list error:', err);
     return json({ error: 'Internal Server Error' }, 500);
@@ -78,10 +89,9 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  // Onboarding/approving stores is a platform-admin action.
+  // Requires a session; individual actions check the role below.
   const user = await getSessionUser(env, request);
   if (!user) return json({ error: 'unauthorized' }, 401);
-  if (user.role !== 'admin') return json({ error: 'forbidden', hint: 'ต้องเป็นผู้ดูแลแพลตฟอร์ม' }, 403);
 
   let body;
   try {
@@ -91,8 +101,52 @@ export async function onRequestPost(context) {
   }
 
   try {
+    // ── Update a store's own settings (branding, Shopify domain, visibility) ──
+    if (body && body.action === 'update') {
+      const id = typeof body.id === 'string' ? body.id.trim() : '';
+      if (!id) return json({ error: 'Invalid tenant id' }, 400);
+      if (!(await canAccessStore(env, user, id))) return json({ error: 'forbidden', tenant_id: id }, 403);
+
+      const fields = [];
+      const values = [];
+      const set = (col, val) => { fields.push(`${col} = ?`); values.push(val); };
+
+      if (typeof body.name === 'string' && body.name.trim().length >= 2) set('name', body.name.trim());
+      if (typeof body.shopify_domain === 'string') set('shopify_domain', body.shopify_domain.trim() || null);
+      if (typeof body.tagline === 'string') set('tagline', body.tagline.trim().slice(0, 160) || null);
+      if (typeof body.brand_color === 'string') {
+        const color = body.brand_color.trim();
+        if (color && !/^#[0-9a-f]{6}$/i.test(color)) {
+          return json({ error: 'invalid_brand_color', hint: 'รูปแบบ #RRGGBB' }, 400);
+        }
+        set('brand_color', color || null);
+      }
+      if (typeof body.logo_url === 'string') set('logo_url', body.logo_url.trim() || null);
+      if (body.is_public !== undefined) set('is_public', body.is_public ? 1 : 0);
+      if (typeof body.plan === 'string' && body.plan.trim()) set('plan', body.plan.trim());
+
+      if (!fields.length) return json({ error: 'nothing_to_update' }, 400);
+
+      values.push(id);
+      try {
+        await env.DB.prepare(`UPDATE tenants SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+      } catch (err) {
+        if (/no such column/i.test(String(err.message || ''))) {
+          return json(
+            { error: 'migration_required', migration: '0003_credentials_branding', detail: String(err.message) },
+            503
+          );
+        }
+        throw err;
+      }
+
+      const { results: updated, migrated } = await selectTenants(env, { where: 'WHERE t.id = ?', binds: [id] });
+      return json({ status: 'updated', tenant: updated?.[0] || null, migration_0003_applied: migrated });
+    }
+
     // ── Approve an existing tenant and seed its workspace ──
     if (body && body.action === 'approve') {
+      if (user.role !== 'admin') return json({ error: 'forbidden', hint: 'ต้องเป็นผู้ดูแลแพลตฟอร์ม' }, 403);
       const id = typeof body.id === 'string' ? body.id.trim() : '';
       if (!id) return json({ error: 'Invalid tenant id' }, 400);
 
@@ -118,11 +172,18 @@ export async function onRequestPost(context) {
         ).bind(id, seed.name, seed.platform, seed.isDefault).run();
       }
 
-      const { results: updated } = await env.DB.prepare(TENANT_BY_ID).bind(id).all();
-      return json({ status: 'approved', seeded_templates: seeds.length, tenant: updated?.[0] || null });
+      const { results: updated, migrated } = await selectTenants(env, { where: 'WHERE t.id = ?', binds: [id] });
+      return json({
+        status: 'approved',
+        seeded_templates: seeds.length,
+        tenant: updated?.[0] || null,
+        migration_0003_applied: migrated,
+      });
     }
 
     // ── Register a new client (lands in `pending`) ──
+    if (user.role !== 'admin') return json({ error: 'forbidden', hint: 'ต้องเป็นผู้ดูแลแพลตฟอร์ม' }, 403);
+
     const name = typeof body?.name === 'string' ? body.name.trim() : '';
     if (name.length < 2) {
       return json({ error: 'Invalid name (min 2 chars)' }, 400);
@@ -148,12 +209,18 @@ export async function onRequestPost(context) {
     const contactEmail = typeof body.contact_email === 'string' && body.contact_email.trim()
       ? body.contact_email.trim()
       : null;
+    const tagline = typeof body.tagline === 'string' && body.tagline.trim() ? body.tagline.trim().slice(0, 160) : null;
+    const brandColor = typeof body.brand_color === 'string' && /^#[0-9a-f]{6}$/i.test(body.brand_color.trim())
+      ? body.brand_color.trim()
+      : null;
+    const isPublic = body.is_public ? 1 : 0;
 
     await env.DB.prepare(
-      `INSERT INTO tenants (id, name, slug, shopify_domain, contact_email, status) VALUES (?, ?, ?, ?, ?, 'pending')`
-    ).bind(id, name, slug, shopifyDomain, contactEmail).run();
+      `INSERT INTO tenants (id, name, slug, shopify_domain, contact_email, tagline, brand_color, is_public, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
+    ).bind(id, name, slug, shopifyDomain, contactEmail, tagline, brandColor, isPublic).run();
 
-    return json({ status: 'registered', tenant: { id, name, slug, status: 'pending' } }, 201);
+    return json({ status: 'registered', tenant: { id, name, slug, status: 'pending', is_public: !!isPublic } }, 201);
   } catch (err) {
     console.error('Tenant write error:', err);
     return json({ error: 'Internal Server Error' }, 500);

@@ -21,6 +21,7 @@
  */
 
 import { resolveStore } from '../../shared/store.js';
+import { getCredential } from '../../shared/credentials.js';
 
 const json = (body, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(body), {
@@ -206,12 +207,19 @@ export async function onRequestGet(context) {
   const store = String(tenantDomain || env.SHOPIFY_STORE_URL || '')
     .replace(/^https?:\/\//, '')
     .replace(/\/$/, '');
-  const adminToken = env.SHOPIFY_ADMIN_API_TOKEN;
-  const storefrontToken = env.SHOPIFY_STOREFRONT_TOKEN;
+
+  // Token: the store's own encrypted credential wins, then the shared env token
+  // (single-store deployments and local development keep working).
+  const tenantId = resolved && resolved.clientId ? resolved.clientId : null;
+  const tenantAdminToken = tenantId ? await getCredential(env, tenantId, 'shopify_admin_token') : null;
+  const tenantStorefrontToken = tenantId ? await getCredential(env, tenantId, 'shopify_storefront_token') : null;
+  const adminToken = tenantAdminToken || env.SHOPIFY_ADMIN_API_TOKEN;
+  const storefrontToken = tenantStorefrontToken || env.SHOPIFY_STOREFRONT_TOKEN;
+  const credentialSource = tenantAdminToken || tenantStorefrontToken ? 'tenant' : (adminToken || storefrontToken ? 'env' : 'none');
 
   const missing = [];
   if (!store) missing.push('tenants.shopify_domain (หรือ SHOPIFY_STORE_URL)');
-  if (!adminToken && !storefrontToken) missing.push('SHOPIFY_ADMIN_API_TOKEN (or SHOPIFY_STOREFRONT_TOKEN)');
+  if (!adminToken && !storefrontToken) missing.push('SHOPIFY_ADMIN_API_TOKEN (or SHOPIFY_STOREFRONT_TOKEN) หรือ token ของร้านใน tenant_credentials');
   if (missing.length) {
     return json({ error: 'shopify_not_configured', missing, store: resolved ? resolved.slug : null }, 503);
   }
@@ -229,11 +237,24 @@ export async function onRequestGet(context) {
 
     // Drop products with no usable image/price — the UI needs both.
     const usable = products.filter((p) => p.slug && p.image && p.price > 0);
-    return json({ products: usable, source, count: usable.length, store, store_slug: resolved ? resolved.slug : null });
+    return json({
+      products: usable,
+      source,
+      count: usable.length,
+      store,
+      store_slug: resolved ? resolved.slug : null,
+      credential_source: credentialSource,
+    });
   } catch (err) {
     console.error('Shopify catalog error:', err);
     return json(
-      { error: 'shopify_fetch_failed', detail: String(err.message || err), store, store_slug: resolved ? resolved.slug : null },
+      {
+        error: 'shopify_fetch_failed',
+        detail: String(err.message || err),
+        store,
+        store_slug: resolved ? resolved.slug : null,
+        credential_source: credentialSource,
+      },
       502
     );
   }

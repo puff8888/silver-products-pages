@@ -14,6 +14,8 @@ const Checkout = lazy(() => import('./pages/Checkout'));
 const OrderConfirmation = lazy(() => import('./pages/OrderConfirmation'));
 const OrderLookup = lazy(() => import('./pages/OrderLookup'));
 const SwatchifyPage = lazy(() => import('./pages/SwatchifyPage'));
+const StoreDirectory = lazy(() => import('./pages/StoreDirectory'));
+const SellPage = lazy(() => import('./pages/SellPage'));
 // Admin-only heavy routes — never in the storefront critical path.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AdsConsole = lazy(() => import('./pages/AdsConsole'));
@@ -96,6 +98,8 @@ export default function App() {
               <Route path="/order/confirmation" element={<OrderConfirmation />} />
               <Route path="/order" element={<OrderLookup />} />
               <Route path="/swatchify" element={<SwatchifyPage />} />
+              <Route path="/stores" element={<StoreDirectory />} />
+              <Route path="/sell" element={<SellPage />} />
 
               <Route path="*" element={
                 <main className="flex-1 flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
