@@ -17,7 +17,11 @@ export async function onRequestGet(context) {
   const { env, request } = context;
   try {
     const user = await getSessionUser(env, request);
-    if (!user) return json({ authenticated: false }, 401);
+    if (!user) {
+      // Tell an unauthenticated caller whether the platform still needs its
+      // first admin, so the UI can show the setup form instead of a login form.
+      return json({ authenticated: false, setup_required: (await adminCount(env)) === 0 }, 401);
+    }
 
     const stores = await userStores(env, user);
     const store = await resolveStore(env, request);
