@@ -47,7 +47,6 @@ export async function onRequestPost(context) {
       return json({ error: 'too_many_requests' }, 429);
     }
 
-  try {
     await env.DB.prepare(
       `INSERT INTO store_requests (brand, contact, note) VALUES (?, ?, ?)`
     ).bind(brand, contact, note).run();
