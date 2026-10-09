@@ -1,4 +1,5 @@
 import { ALL_PRODUCTS } from '../data/products';
+import { withStore } from './store';
 
 /**
  * Storefront catalog loader.
@@ -12,7 +13,7 @@ export const LOCAL_CATALOG_SOURCE = 'local-fallback';
 
 export async function loadCatalog() {
   try {
-    const res = await fetch('/api/products');
+    const res = await fetch(withStore('/api/products'));
 
     if (res.ok) {
       const data = await res.json();
@@ -20,7 +21,7 @@ export async function loadCatalog() {
         return {
           products: data.products,
           source: data.source || 'shopify',
-          store: data.store || null,
+          shopifyStore: data.store || null,
           error: null,
           loading: false,
         };
@@ -28,7 +29,7 @@ export async function loadCatalog() {
       return {
         products: ALL_PRODUCTS,
         source: LOCAL_CATALOG_SOURCE,
-        store: null,
+        shopifyStore: null,
         error: 'แคตตาล็อกจาก Shopify ว่างเปล่า',
         loading: false,
       };
@@ -38,7 +39,7 @@ export async function loadCatalog() {
     return {
       products: ALL_PRODUCTS,
       source: LOCAL_CATALOG_SOURCE,
-      store: null,
+      shopifyStore: null,
       error:
         res.status === 503
           ? 'ยังไม่ได้ตั้งค่า Shopify (ใช้แคตตาล็อกตัวอย่างก่อน)'
@@ -49,7 +50,7 @@ export async function loadCatalog() {
     return {
       products: ALL_PRODUCTS,
       source: LOCAL_CATALOG_SOURCE,
-      store: null,
+      shopifyStore: null,
       error: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (ใช้แคตตาล็อกตัวอย่างก่อน)',
       loading: false,
     };

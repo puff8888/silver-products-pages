@@ -1,3 +1,11 @@
+import { resolveStore } from '../../shared/store.js';
+
+const json = (body, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
@@ -5,10 +13,7 @@ export async function onRequestPost(context) {
     try {
       body = await request.json();
     } catch (parseErr) {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Invalid JSON body' }, 400);
     }
 
     // Dashboard funnel uses: PageView → ViewContent → AddToCart → Checkout → Purchase
@@ -28,41 +33,38 @@ export async function onRequestPost(context) {
     if (eventName === 'InitiateCheckout') eventName = 'Checkout';
 
     if (!eventName || !VALID_EVENTS.includes(eventName)) {
-      return new Response(JSON.stringify({ error: 'Invalid or missing event_name', allowed: VALID_EVENTS }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Invalid or missing event_name', allowed: VALID_EVENTS }, 400);
     }
     if (!sessionId || typeof sessionId !== 'string') {
-      return new Response(JSON.stringify({ error: 'Invalid or missing session_id' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Invalid or missing session_id' }, 400);
     }
     const value = Number(valueRaw);
     if (typeof value !== 'number' || value < 0 || !Number.isFinite(value)) {
-      return new Response(JSON.stringify({ error: 'Invalid value' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Invalid value' }, 400);
     }
+
+    // Multi-store: every event belongs to the store this request resolved to,
+    // so each store's analytics stay separate.
+    const store = await resolveStore(env, request);
 
     const { success, meta } = await env.DB.prepare(
-      `INSERT INTO events (session_id, event_name, channel, value, content_ids, currency, order_id, product_count, page_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(sessionId, eventName, channel, value, contentIds, currency, orderId, productCount, pagePath).run();
+      `INSERT INTO events (session_id, event_name, channel, value, content_ids, currency, order_id, product_count, page_path, client_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      sessionId, eventName, channel, value, contentIds, currency, orderId, productCount, pagePath, store.clientId
+    ).run();
 
     if (success) {
-      return new Response(JSON.stringify({ status: 'tracked', event: eventName, row_id: meta && meta.last_row_id ? meta.last_row_id : null }), {
-        headers: { 'Content-Type': 'application/json' },
+      return json({
+        status: 'tracked',
+        event: eventName,
+        row_id: meta && meta.last_row_id ? meta.last_row_id : null,
+        store: store.slug,
       });
-    } else {
-      throw new Error('D1 insert failed');
     }
+    throw new Error('D1 insert failed');
   } catch (err) {
     console.error('track API error:', err);
-    return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return json({ error: 'Internal Server Error' }, 500);
   }
 }

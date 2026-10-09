@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useCatalog } from '../context/CatalogContext';
 
 // ─── Shared admin theme — single source of truth ───
 // Base = homepage (Storefront) tokens only:
@@ -35,6 +36,7 @@ function BrandMark() {
 
 export function AdminShell({ children, maxWidth = 'max-w-6xl' }) {
   const location = useLocation();
+  const { store } = useCatalog();
   return (
     <div className="admin-light min-h-screen flex flex-col md:flex-row bg-background text-foreground relative overflow-hidden">
       {/* Homepage ambient stack — same as Storefront */}
@@ -89,6 +91,20 @@ export function AdminShell({ children, maxWidth = 'max-w-6xl' }) {
             );
           })}
         </nav>
+        {/* Which store is being viewed (multi-store: resolved from the subdomain) */}
+        <div className="mt-6 rounded-xl border border-silver-900/70 bg-background/60 p-3 text-[11px]">
+          <p className="text-muted">Store · ร้านที่กำลังดู</p>
+          <p className="truncate font-semibold text-foreground">
+            {store ? (store.name || store.slug) : '…'}
+          </p>
+          <p className="mt-0.5 truncate font-mono text-[10px] text-muted">
+            {store ? `${store.slug}${store.resolution ? ` · ${store.resolution}` : ''}` : ''}
+          </p>
+          {store && store.resolved === false && (
+            <p className="mt-1 text-[10px] text-warning">ไม่พบร้านนี้ — แสดงร้านเริ่มต้นแทน</p>
+          )}
+        </div>
+
         <div className="mt-auto pt-6 border-t border-silver-900/70 text-[11px] text-muted leading-relaxed">
           <p className="font-semibold text-silver-200 mb-1">Thai Market Dedicated</p>
           <p>PromptPay · COD · LINE OA</p>

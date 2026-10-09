@@ -5,6 +5,9 @@
  * This endpoint pulls the real catalog from Shopify and normalises it into the
  * shape the UI already expects, so product pages/cart/swatchify keep working.
  *
+ * Multi-store: the store is resolved from the subdomain (shared/store.js) and
+ * its own `tenants.shopify_domain` is used when set.
+ *
  * The access token never reaches the browser: it is read from the Function
  * environment (Cloudflare Pages → Settings → Environment variables).
  *
@@ -16,6 +19,8 @@
  *   200 { products: [...], source: "shopify-admin" | "shopify-storefront", count }
  *   503 { error: "shopify_not_configured", missing: [...] }  -> client falls back to the local catalog
  */
+
+import { resolveStore } from '../../shared/store.js';
 
 const json = (body, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(body), {
@@ -189,16 +194,26 @@ async function fetchStorefront(base, token) {
 }
 
 export async function onRequestGet(context) {
-  const { env } = context;
-  const store = String(env.SHOPIFY_STORE_URL || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const { env, request } = context;
+
+  // Multi-store: the store's own Shopify domain (tenants.shopify_domain) wins;
+  // SHOPIFY_STORE_URL stays as the fallback for single-store deployments.
+  // NOTE: per-store access tokens are not supported yet — one token pair in the
+  // environment is used for whichever store the request resolved to. Storing a
+  // token per tenant (encrypted) is the next step in docs/multi-store-plan.md.
+  const resolved = await resolveStore(env, request).catch(() => null);
+  const tenantDomain = resolved && resolved.tenant ? resolved.tenant.shopify_domain : null;
+  const store = String(tenantDomain || env.SHOPIFY_STORE_URL || '')
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
   const adminToken = env.SHOPIFY_ADMIN_API_TOKEN;
   const storefrontToken = env.SHOPIFY_STOREFRONT_TOKEN;
 
   const missing = [];
-  if (!store) missing.push('SHOPIFY_STORE_URL');
+  if (!store) missing.push('tenants.shopify_domain (หรือ SHOPIFY_STORE_URL)');
   if (!adminToken && !storefrontToken) missing.push('SHOPIFY_ADMIN_API_TOKEN (or SHOPIFY_STOREFRONT_TOKEN)');
   if (missing.length) {
-    return json({ error: 'shopify_not_configured', missing }, 503);
+    return json({ error: 'shopify_not_configured', missing, store: resolved ? resolved.slug : null }, 503);
   }
 
   try {
@@ -214,11 +229,11 @@ export async function onRequestGet(context) {
 
     // Drop products with no usable image/price — the UI needs both.
     const usable = products.filter((p) => p.slug && p.image && p.price > 0);
-    return json({ products: usable, source, count: usable.length, store });
+    return json({ products: usable, source, count: usable.length, store, store_slug: resolved ? resolved.slug : null });
   } catch (err) {
     console.error('Shopify catalog error:', err);
     return json(
-      { error: 'shopify_fetch_failed', detail: String(err.message || err), store },
+      { error: 'shopify_fetch_failed', detail: String(err.message || err), store, store_slug: resolved ? resolved.slug : null },
       502
     );
   }
