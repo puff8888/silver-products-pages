@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 
-import { ALL_PRODUCTS } from '../data/products';
+import { useCatalog } from '../context/CatalogContext';
 import { useCart } from '../context/CartContext';
 import { trackAddToCart } from '../lib/analytics';
 import SilverPathBackground from '../components/SilverPathBackground';
 
 export default function Catalog() {
+  const { products } = useCatalog();
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [addedProductId, setAddedProductId] = useState(null);
   const dialogRef = useRef(null);
@@ -83,7 +84,7 @@ export default function Catalog() {
         <p className="mt-2 text-sm text-muted">Explore our full range of curated essentials.</p>
 
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-          {ALL_PRODUCTS.map(p => (
+          {products.map(p => (
             <div key={p.id} className="product-card group flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface shadow-sm transition-all duration-220 hover:-translate-y-0.5 hover:shadow-md hover:border-foreground/20">
               {/* Clicking image/title goes to PDP for deeper engagement */}
               <Link to={`/product/${p.slug}`} className="block flex flex-col flex-1">

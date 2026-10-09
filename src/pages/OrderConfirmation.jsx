@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import gsap from 'gsap';
+import { useCatalog } from '../context/CatalogContext';
 
 /* ─── Confetti Canvas Animation ─── */
 function ConfettiCanvas() {
@@ -88,11 +89,10 @@ function ConfettiCanvas() {
   );
 }
 
-/* ─── Cross-sell products (from main catalog) ─── */
-import { ALL_PRODUCTS } from '../data/products';
-const CROSS_SELL = ALL_PRODUCTS.slice(0, 3);
-
 export default function OrderConfirmation() {
+  const { products } = useCatalog();
+  // Cross-sell items come from the connected catalog (falls back to the bundled demo catalog)
+  const CROSS_SELL = products.slice(0, 3);
   const containerRef = useRef(null);
   const [showConfetti, setShowConfetti] = useState(true);
   const location = useLocation();

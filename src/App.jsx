@@ -22,6 +22,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
+import { CatalogProvider } from './context/CatalogContext';
 import { trackPageView, captureUtmParams } from './lib/analytics';
 
 function SpaTracker() {
@@ -75,6 +76,7 @@ export default function App() {
     <CartProvider>
       <ToastProvider>
         <AuthProvider>
+        <CatalogProvider>
         <Router>
           <SpaTracker />
           <ToastContainer />
@@ -111,6 +113,7 @@ export default function App() {
           </Routes>
           </Suspense>
         </Router>
+        </CatalogProvider>
         </AuthProvider>
       </ToastProvider>
     </CartProvider>

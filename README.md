@@ -258,3 +258,51 @@ WHERE channel IN ('Checkout', 'PDP') AND created_at < '2026-10-09 23:00:00';
 - ถ้าต้องการ Cometly/Yahoo/AI proxy กลับมา (มีในซอร์สเดิมในเครื่อง แต่ไม่มีในเวอร์ชันที่ deploy):
   เติม `<script>` ใน `index.html` (มีคอมเมนต์ใน `.env` อยู่แล้ว) + การ์ด Cometly ใน `AdsConsole.jsx`
   + `FloatingDock.jsx` ที่เรียก `VITE_AI_PROXY_URL`
+
+---
+
+## 9. ต่อร้านค้าจริง (Shopify) — สินค้าจริงบนหน้าร้าน
+
+เดิมหน้าร้านใช้แคตตาล็อก hardcode 8 ชิ้นใน `src/data/products.js` (รูปจาก Unsplash)
+ตอนนี้มี data layer ที่ดึง **สินค้าจริงจาก Shopify** โดย token ไม่หลุดไปฝั่งเบราว์เซอร์
+
+```
+เบราว์เซอร์ ──GET /api/products──▶ Pages Function ──▶ Shopify Admin/Storefront API
+     ▲                                    │
+     └── ถ้า 503/502 (ยังไม่ตั้งค่า/ดึงไม่ได้) ──▶ fallback: แคตตาล็อกใน src/data/products.js
+```
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `functions/api/products.js` | เรียก Shopify แล้ว normalise เป็น shape ที่ UI ใช้อยู่ (id, slug, name, price, originalPrice, image, gallery, swatches, details, badge…) · ตัดสินค้าที่ไม่มีรูปหรือราคาออก · cache 300s |
+| `src/lib/catalog.js` | เรียก `/api/products` + fallback อัตโนมัติ |
+| `src/context/CatalogContext.jsx` | แหล่งข้อมูลกลาง (`useCatalog()`) แทนการ import แคตตาล็อกตรง ๆ |
+| `Storefront/Catalog/ProductDetail/Swatchify/OrderConfirmation/FloatingDock` | เปลี่ยนมาอ่านจาก `useCatalog()` แล้ว |
+
+**ตั้งค่าที่ต้องใส่** (`.env` สำหรับ dev · Cloudflare Pages env สำหรับ production):
+
+| ตัวแปร | จำเป็น | หมายเหตุ |
+|---|---|---|
+| `SHOPIFY_STORE_URL` | ✅ | `xxx.myshopify.com` |
+| `SHOPIFY_ADMIN_API_TOKEN` | อย่างใดอย่างหนึ่ง | scope `read_products` · **ความลับ — ห้ามใช้ `VITE_`** |
+| `SHOPIFY_STOREFRONT_TOKEN` | อย่างใดอย่างหนึ่ง | อ่านอย่างเดียว |
+
+ถ้าไม่ตั้งค่าเลย: `/api/products` → `503 {"error":"shopify_not_configured","missing":[...]}` และหน้าร้าน
+แสดงแคตตาล็อกตัวอย่างต่อ (ไม่พัง) — ตรวจสอบสถานะที่แท่งบนหน้าเว็บได้จาก `GET /api/products`
+
+**สิ่งที่ปรับให้ทนกับข้อมูล Shopify จริง** (สินค้าจริงมักไม่มี rating/ราคาตั้ง/ออปชัน)
+
+- `rating = null`, `reviews = []` → UI **ซ่อน** ดาว/รีวิว และแสดง "สินค้าใหม่ · New" แทน (ไม่ขึ้น `null`/`NaN`)
+- `originalPrice = null` เมื่อไม่มี compare-at price → ซ่อนราคาขีดฆ่า/ป้ายส่วนลด (เดิม **crash** `Cannot read properties of null (reading 'toLocaleString')` ที่ PDP 3 จุด — แก้แล้ว)
+- swatches มาจาก Shopify option ที่ชื่อ Color/Colour/สี (มีพจนานุกรมชื่อสี → hex + hash fallback)
+- หมวดหมู่: `product_type` ถูก slugify และ **แท็บหมวดใหม่จะถูกเพิ่มอัตโนมัติ** จากข้อมูลจริง (ไม่ติดอยู่ในลิสต์เดิม 8 หมวด)
+- PDP ระหว่างรอโหลดแคตตาล็อกแสดง loading (ไม่กระพริบ "ไม่พบสินค้า")
+
+**ผลทดสอบ** (ทดสอบรันจริง 2 โหมด: fallback และจำลองข้อมูล Shopify)
+
+```
+fallback (ยังไม่ตั้งค่า) : หน้าร้าน 8 สินค้าเดิม · ไม่มี NaN/null · ไม่มี pageerror
+Shopify (จำลอง)         : PDP แสดง ฿1,290 + compare ฿1,590 + ป้าย -19% · swatch "Sand/Graphite" จาก option จริง
+                          details จาก options · สินค้าที่ไม่มีราคาตั้ง/ออปชันไม่ crash · เพิ่มลงตะกร้าได้จริง
+                          หมวดใหม่ "lighting fixtures" ขึ้นเป็นแท็บอัตโนมัติ · ไม่มี null/NaN · ไม่มี pageerror
+```

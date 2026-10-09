@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 
-import { ALL_PRODUCTS } from '../data/products';
+import { useCatalog } from '../context/CatalogContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { trackAddToCart } from '../lib/analytics';
@@ -16,6 +16,7 @@ export default function Storefront() {
   const tabRefs = useRef([]);
   const { addToCart } = useCart();
   const { toast } = useToast();
+  const { products } = useCatalog();
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedSwatches, setSelectedSwatches] = useState({});
@@ -71,19 +72,27 @@ export default function Storefront() {
   };
 
   const filteredProducts = activeCategory === 'all'
-    ? ALL_PRODUCTS
-    : ALL_PRODUCTS.filter(p => p.category === activeCategory);
+    ? products
+    : products.filter(p => p.category === activeCategory);
 
-  const categories = [
-    { id: 'all', label: 'ทั้งหมด' },
-    { id: 'electronics', label: 'อุปกรณ์อิเล็กทรอนิกส์' },
-    { id: 'fashion', label: 'แฟชั่น' },
-    { id: 'home', label: 'ของใช้ในบ้าน' },
-    { id: 'fitness', label: 'ฟิตเนส' },
-    { id: 'beauty', label: 'บิวตี้' },
-    { id: 'bags', label: 'กระเป๋า' },
-    { id: 'stationery', label: 'เครื่องเขียน' },
-  ];
+  // Base categories plus any product_type that comes from the connected store,
+  // so a real Shopify catalog is never hidden behind a fixed filter list.
+  const categories = useMemo(() => {
+    const base = [
+      { id: 'all', label: 'ทั้งหมด' },
+      { id: 'electronics', label: 'อุปกรณ์อิเล็กทรอนิกส์' },
+      { id: 'fashion', label: 'แฟชั่น' },
+      { id: 'home', label: 'ของใช้ในบ้าน' },
+      { id: 'fitness', label: 'ฟิตเนส' },
+      { id: 'beauty', label: 'บิวตี้' },
+      { id: 'bags', label: 'กระเป๋า' },
+      { id: 'stationery', label: 'เครื่องเขียน' },
+    ];
+    const known = new Set(base.map(c => c.id));
+    const extras = Array.from(new Set(products.map(p => p.category).filter(c => c && !known.has(c))))
+      .map(id => ({ id, label: id.replace(/-/g, ' ') }));
+    return extras.length ? [...base, ...extras] : base;
+  }, [products]);
 
   const handleTabKeyDown = (e, index) => {
     let next = null;
@@ -501,11 +510,15 @@ export default function Storefront() {
 
                   {/* ─── Meta: Rating + Stock ─── */}
                   <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1.5" role="img" aria-label={`Rating ${product.rating} out of 5, ${product.reviewsCount} reviews`}>
-                      <span className="text-warning text-sm leading-none" aria-hidden="true">★</span>
-                      <span className="text-[13px] font-semibold text-foreground tabular-nums leading-none">{product.rating}</span>
-                      <span className="text-[11px] text-muted leading-none">({product.reviewsCount})</span>
-                    </div>
+                    {product.rating > 0 ? (
+                      <div className="flex items-center gap-1.5" role="img" aria-label={`Rating ${product.rating} out of 5, ${product.reviewsCount} reviews`}>
+                        <span className="text-warning text-sm leading-none" aria-hidden="true">★</span>
+                        <span className="text-[13px] font-semibold text-foreground tabular-nums leading-none">{product.rating}</span>
+                        <span className="text-[11px] text-muted leading-none">({product.reviewsCount})</span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-muted">สินค้าใหม่ · New</span>
+                    )}
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success/90
                                      bg-success/10 border border-success/20 px-2 py-0.5 rounded-md">
                       <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-subtle"></span>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ALL_PRODUCTS } from '../data/products';
+import { useCatalog } from '../context/CatalogContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { trackAddToCart } from '../lib/analytics';
@@ -41,9 +41,9 @@ function classifySwatch(swatch) {
   return l < 0.45 ? 'dark' : 'light';
 }
 
-function productsForVibe(vibe) {
-  if (!vibe || vibe === 'all') return ALL_PRODUCTS;
-  return ALL_PRODUCTS.filter((p) => (p.swatches || []).some((s) => classifySwatch(s) === vibe));
+function productsForVibe(products, vibe) {
+  if (!vibe || vibe === 'all') return products;
+  return products.filter((p) => (p.swatches || []).some((s) => classifySwatch(s) === vibe));
 }
 
 function pickSwatch(product, vibe) {
@@ -89,13 +89,14 @@ function SwatchPicker({ swatches, value, onChange, label }) {
 function SwatchifyWizard() {
   const { addToCart } = useCart();
   const { toast } = useToast();
+  const { products } = useCatalog();
   const [step, setStep] = useState(0);
   const [vibe, setVibe] = useState('all');
   const [productId, setProductId] = useState(null);
   const [swatchId, setSwatchId] = useState(null);
   const [qty, setQty] = useState(1);
 
-  const visible = useMemo(() => productsForVibe(vibe), [vibe]);
+  const visible = useMemo(() => productsForVibe(products, vibe), [products, vibe]);
   const product = visible.find((p) => p.id === productId) || null;
   const swatch = product ? product.swatches.find((s) => s.id === swatchId) || pickSwatch(product, vibe) : null;
 

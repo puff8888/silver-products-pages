@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 
-import { ALL_PRODUCTS } from '../data/products';
+import { useCatalog } from '../context/CatalogContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { trackAddToCart, trackViewContent } from '../lib/analytics';
@@ -14,8 +14,10 @@ export default function ProductDetail() {
   const { addToCart } = useCart();
   const { toast } = useToast();
 
+  const { products, loading: catalogLoading } = useCatalog();
+
   // Find product by slug or numeric ID
-  const product = ALL_PRODUCTS.find(
+  const product = products.find(
     (p) => p.slug === id || p.id === parseInt(id, 10)
   );
 
@@ -62,6 +64,17 @@ export default function ProductDetail() {
     trackViewContent(product);
   }, [product?.id]);
 
+  if (!product && catalogLoading) {
+    return (
+      <main className="flex-1 flex items-center justify-center min-h-[60vh] px-4">
+        <div className="flex flex-col items-center gap-3" role="status" aria-label="Loading product">
+          <div className="h-8 w-8 rounded-full border-2 border-border border-t-foreground animate-spin" />
+          <p className="text-sm text-muted">กำลังโหลดสินค้า…</p>
+        </div>
+      </main>
+    );
+  }
+
   if (!product) {
     return (
       <main className="flex-1 flex items-center justify-center min-h-[60vh]">
@@ -81,8 +94,11 @@ export default function ProductDetail() {
   }
 
   const currentSwatch = product.swatches.find((s) => s.id === selectedSwatch) || product.swatches[0];
-  const discount = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
-  const relatedProducts = ALL_PRODUCTS.filter((p) => p.id !== product.id).slice(0, 3);
+  // Real Shopify products often have no compare-at price and no review data.
+  const discount = product.originalPrice && product.originalPrice > product.price
+    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+    : 0;
+  const relatedProducts = products.filter((p) => p.id !== product.id).slice(0, 3);
 
   const handleAddToCart = async () => {
     setIsAdded(true);
@@ -121,17 +137,21 @@ export default function ProductDetail() {
                   className="h-full w-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
                 />
                 {/* Discount badge */}
-                <div className="absolute top-4 left-4">
-                  <span className="rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-lg shadow-red-500/20">
-                    -{discount}%
-                  </span>
-                </div>
+                {discount > 0 && (
+                  <div className="absolute top-4 left-4">
+                    <span className="rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-lg shadow-red-500/20">
+                      -{discount}%
+                    </span>
+                  </div>
+                )}
                 {/* Product badge */}
-                <div className="absolute top-4 right-4">
-                  <span className="rounded-full bg-surface/95 backdrop-blur-sm border border-border/70 px-3 py-1 text-xs font-bold text-foreground shadow-sm">
-                    {product.badge}
-                  </span>
-                </div>
+                {product.badge && (
+                  <div className="absolute top-4 right-4">
+                    <span className="rounded-full bg-surface/95 backdrop-blur-sm border border-border/70 px-3 py-1 text-xs font-bold text-foreground shadow-sm">
+                      {product.badge}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Thumbnail Gallery */}
@@ -165,11 +185,13 @@ export default function ProductDetail() {
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted">
                   {product.category}
                 </span>
-                <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold" role="img" aria-label={`Rating: ${product.rating} out of 5 stars, ${product.reviewsCount} reviews`}>
-                  <span aria-hidden="true">★★★★★</span>
-                  <span className="text-foreground font-bold">{product.rating}</span>
-                  <span className="text-muted">({product.reviewsCount} รีวิว)</span>
-                </div>
+                {product.rating > 0 && (
+                  <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold" role="img" aria-label={`Rating: ${product.rating} out of 5 stars, ${product.reviewsCount} reviews`}>
+                    <span aria-hidden="true">★★★★★</span>
+                    <span className="text-foreground font-bold">{product.rating}</span>
+                    <span className="text-muted">({product.reviewsCount} รีวิว)</span>
+                  </div>
+                )}
               </div>
 
               {/* Title */}
@@ -183,12 +205,16 @@ export default function ProductDetail() {
                 <span className="text-3xl font-extrabold text-foreground tabular-nums">
                   ฿{product.price.toLocaleString()}
                 </span>
-                <span className="text-lg text-muted line-through tabular-nums">
-                  ฿{product.originalPrice.toLocaleString()}
-                </span>
-                <span className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600">
-                  ประหยัด ฿{(product.originalPrice - product.price).toLocaleString()}
-                </span>
+                {product.originalPrice > product.price && (
+                  <>
+                    <span className="text-lg text-muted line-through tabular-nums">
+                      ฿{product.originalPrice.toLocaleString()}
+                    </span>
+                    <span className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600">
+                      ประหยัด ฿{(product.originalPrice - product.price).toLocaleString()}
+                    </span>
+                  </>
+                )}
               </div>
 
               {/* Urgency micro-indicator */}
@@ -343,25 +369,27 @@ export default function ProductDetail() {
         </section>
 
         {/* ─── Reviews ─── */}
-        <section className="mx-auto w-full max-w-7xl px-4 py-8 lg:px-8">
-          <h2 className="font-display text-xl font-bold text-foreground mb-6">
-            รีวิวจากลูกค้า ({product.reviewsCount})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {product.reviews.map((review, i) => (
-              <div key={i} className="rounded-2xl border border-border bg-surface p-5 flex flex-col gap-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-foreground">{review.name}</span>
-                  <span className="text-amber-500 text-xs font-semibold">
-                    {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
-                  </span>
+        {product.reviews && product.reviews.length > 0 && (
+          <section className="mx-auto w-full max-w-7xl px-4 py-8 lg:px-8">
+            <h2 className="font-display text-xl font-bold text-foreground mb-6">
+              รีวิวจากลูกค้า ({product.reviewsCount})
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {product.reviews.map((review, i) => (
+                <div key={i} className="rounded-2xl border border-border bg-surface p-5 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-foreground">{review.name}</span>
+                    <span className="text-amber-500 text-xs font-semibold">
+                      {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted leading-relaxed">{review.text}</p>
+                  <span className="text-[11px] text-muted/70">{review.date}</span>
                 </div>
-                <p className="text-sm text-muted leading-relaxed">{review.text}</p>
-                <span className="text-[11px] text-muted/70">{review.date}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ─── Related Products (Cross-sell) ─── */}
         <section className="mx-auto w-full max-w-7xl px-4 py-10 lg:px-8 border-t border-border/60">
@@ -393,9 +421,11 @@ export default function ProductDetail() {
                     <span className="text-sm font-extrabold text-foreground tabular-nums">
                       ฿{rp.price.toLocaleString()}
                     </span>
-                    <span className="text-xs text-muted line-through tabular-nums">
-                      ฿{rp.originalPrice.toLocaleString()}
-                    </span>
+                    {rp.originalPrice > rp.price && (
+                      <span className="text-xs text-muted line-through tabular-nums">
+                        ฿{rp.originalPrice.toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
               </Link>
@@ -408,7 +438,9 @@ export default function ProductDetail() {
       <div aria-label="Quick add to cart" className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-surface/95 backdrop-blur-lg p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="flex items-center gap-3 max-w-lg mx-auto">
           <div className="flex-1" aria-live="polite">
-            <p className="text-xs text-muted line-through tabular-nums">฿{product.originalPrice.toLocaleString()}</p>
+            {product.originalPrice > product.price && (
+              <p className="text-xs text-muted line-through tabular-nums">฿{product.originalPrice.toLocaleString()}</p>
+            )}
             <p className="text-lg font-extrabold text-foreground tabular-nums">฿{(product.price * qty).toLocaleString()}</p>
           </div>
           <button

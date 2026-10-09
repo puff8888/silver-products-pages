@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { ALL_PRODUCTS } from '../data/products';
+import { useCatalog } from '../context/CatalogContext';
 import { trackAddToCart } from '../lib/analytics';
 import UnifiedActionDrawer from './UnifiedActionDrawer';
 
@@ -16,10 +16,11 @@ export default function FloatingDock() {
   const navigate = useNavigate();
   const { itemCount, addToCart } = useCart();
   const { toast } = useToast();
+  const { products } = useCatalog();
 
   const productMatch = useMatch('/product/:id');
   const product = productMatch
-    ? ALL_PRODUCTS.find(p => p.slug === productMatch.id || p.id === parseInt(productMatch.id, 10))
+    ? products.find(p => p.slug === productMatch.id || p.id === parseInt(productMatch.id, 10))
     : null;
 
   useEffect(() => {
