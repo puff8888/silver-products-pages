@@ -1,4 +1,5 @@
 import { slugify, isValidSlug } from '../../shared/store.js';
+import { getSessionUser, userStores } from '../../shared/auth.js';
 
 /**
  * Tenant (store) registry API.
@@ -48,7 +49,24 @@ function newTenantId() {
 
 export async function onRequestGet(context) {
   try {
-    const { env } = context;
+    const { env, request } = context;
+
+    // Store registry is admin data: platform admins see every store, a store
+    // owner sees only the stores they are a member of.
+    const user = await getSessionUser(env, request);
+    if (!user) return json({ error: 'unauthorized' }, 401);
+
+    if (user.role !== 'admin') {
+      const mine = await userStores(env, user);
+      const { results } = await env.DB.prepare(
+        `SELECT ${TENANT_COLUMNS}
+           FROM tenants t
+          WHERE t.id IN (${mine.map(() => '?').join(',') || 'NULL'})
+          ORDER BY t.created_at DESC`
+      ).bind(...mine.map((s) => s.id)).all();
+      return json({ tenants: results || [] });
+    }
+
     const { results } = await env.DB.prepare(TENANT_LIST).all();
     return json({ tenants: results || [] });
   } catch (err) {
@@ -59,6 +77,11 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // Onboarding/approving stores is a platform-admin action.
+  const user = await getSessionUser(env, request);
+  if (!user) return json({ error: 'unauthorized' }, 401);
+  if (user.role !== 'admin') return json({ error: 'forbidden', hint: 'ต้องเป็นผู้ดูแลแพลตฟอร์ม' }, 403);
 
   let body;
   try {

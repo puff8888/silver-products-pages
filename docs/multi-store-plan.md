@@ -92,7 +92,14 @@ POST /api/tenants {slug:'cafe'}         -> 409 · {slug:'bad slug!'} -> 400 · �
 
 ### 3.2 ระยะถัดไป (แผนเดิม)
 
-**ระยะ 0 — ปิดช่องโหว่ (ก่อนอย่างอื่น)**
+**ระยะ 0 — ปิดช่องโหว่ ✅ ทำแล้ว**
+
+ทำเสร็จในรอบนี้ (ดู README หัวข้อ 10): `users`/`sessions`/`tenant_members`/`login_attempts` + PBKDF2 + cookie session ·
+`/api/tenants` และ `/api/dashboard` ตอบ 401 เมื่อไม่มี session · ตรวจสิทธิ์ระดับร้าน (403 ถ้าไม่ใช่สมาชิกของร้านนั้น) ·
+`POST /api/tenants` จำกัดเฉพาะ platform admin · UI คลุมด้วย `AdminGate`
+— apply migration กับ production D1 และตั้ง `AUTH_PEPPER` (secret) แล้ว · **ยังต้องให้เจ้าของตั้ง `ADMIN_SETUP_TOKEN` เพื่อสร้างผู้ดูแลคนแรก**
+
+**รายละเอียดเดิมของระยะ 0 (เก็บไว้เป็น reference)**
 - เพิ่ม auth สำหรับ admin: ใช้ระบบ login จริง (หรือถ้าจะผูกกับ membership → ใช้ `users` + `owner_user_id` ของระบบนั้นเป็น identity กลาง)
 - `/api/tenants`, `/api/dashboard`, `/api/orders` (list), `/api/settings` → ต้องมี session + ตรวจว่าเป็นเจ้าของร้านนั้น (tenant scoping)
 - `POST /api/tenants` → ต้องมีสิทธิ์ (ตอนนี้ยิง `{"name":"..."}` เฉย ๆ ก็สมัครได้)

@@ -251,7 +251,36 @@ WHERE channel IN ('Checkout', 'PDP') AND created_at < '2026-10-09 23:00:00';
 - `app/.wr-home/`, `app/.npm-cache/`, `app/node_modules/`, `app/dist/` เป็นของที่เกิดจากการ build/ทดสอบ
   ไม่ต้อง commit (ควรมี `.gitignore` — ดูหมายเหตุในหัวข้อ 8)
 
-## 8. หมายเหตุการดูแลต่อ
+## 10. Admin auth — ใครเห็นข้อมูลร้านได้บ้าง
+
+**ก่อนหน้านี้ `/dashboard`, `/clients`, `/settings` และ API ของมันเปิดสาธารณะทั้งหมด** — ใครก็อ่านยอดขายทุกร้านได้
+และ `POST /api/tenants` สมัครร้านใหม่ได้ ตอนนี้ปิดแล้วด้วย session จริงของโปรเจกต์เอง (ไม่ผูกกับระบบ membership)
+
+| ส่วน | รายละเอียด |
+|---|---|
+| ตารางใหม่ | `users` · `tenant_members` (ผู้ใช้หนึ่งคนเข้าถึงได้หลายร้าน) · `sessions` · `login_attempts` |
+| รหัสผ่าน | PBKDF2-SHA256 + salt ต่อผู้ใช้ + pepper จาก secret (`AUTH_PEPPER`) · เก็บเป็น `pbkdf2$iter$salt$hash` |
+| Session | 32 ไบต์สุ่ม เก็บใน D1 เป็น `sha256(token)` → ฐานข้อมูลรั่วก็นำไปใช้ต่อไม่ได้ · cookie `dsp_session` HttpOnly/SameSite=Lax · อายุ 30 วัน |
+| กัน brute force | ผิด 10 ครั้ง/อีเมล ภายใน 15 นาที → `429` |
+| API ที่ถูกป้องกัน | `GET/POST /api/tenants` (401) · `GET /api/dashboard` (401 + ต้องมีสิทธิ์ร้านนั้น ไม่งั้น 403) |
+| API ที่ยังเป็นสาธารณะ (โดยตั้งใจ) | `/api/track`, `/api/orders` (POST + lookup ตามเลขออเดอร์), `/api/products`, `/api/store` — เป็นทางฝั่งลูกค้า |
+| สิทธิ์ | `role: admin` = ผู้ดูแลแพลตฟอร์ม (เห็น/จัดการทุกร้าน) · `role: user` = เจ้าของร้าน (เห็นเฉพาะร้านที่ผูกใน `tenant_members`) |
+| UI | ทุกหน้า admin ถูกคลุมด้วย `AdminGate` — ยังไม่ login จะเห็นฟอร์มเข้าสู่ระบบ (หรือฟอร์ม setup ครั้งแรก) · เมนู Clients ซ่อนสำหรับ non-admin · มีปุ่มออกจากระบบใน sidebar |
+
+### วิธีสร้างผู้ดูแลคนแรก (ใน production)
+
+1. ตั้ง **`ADMIN_SETUP_TOKEN`** ที่ Cloudflare → Workers & Pages → `bruno-silver-products` → Settings → Environment variables
+   (Production) เป็นค่า secret ที่คุณคิดเอง — ระบบจะปฏิเสธการ setup ซ้ำโดยอัตโนมัติเมื่อมีผู้ใช้แล้ว
+2. เปิด `https://bruno-silver-products.pages.dev/dashboard` → จะเห็นฟอร์ม **"ครั้งแรกของระบบ? สร้างผู้ดูแล"**
+   → กรอก setup token + อีเมล + รหัสผ่าน (≥ 8 ตัวอักษร) → ระบบจะสร้างผู้ดูแลระดับแพลตฟอร์มและผูกกับทุกร้านที่มีอยู่
+3. หลังสร้างเสร็จ แนะนำให้ **ลบ/เปลี่ยน `ADMIN_SETUP_TOKEN`** ทิ้ง (ถึงจะไม่ตั้ง ระบบก็ไม่ให้ setup ซ้ำอยู่แล้ว)
+
+**หมายเหตุ:** `AUTH_PEPPER` ถูกตั้งเป็น secret ให้แล้วที่ Pages project (ถ้าเปลี่ยน/ลบ later รหัสผ่านเดิมจะใช้ไม่ได้ ต้อง setup ใหม่)
+และ env vars ของ Pages จะมีผลกับ deployment ใหม่เท่านั้น — ต้อง deploy หลังแก้ค่า
+
+---
+
+## 11. หมายเหตุการดูแลต่อ
 
 - เพิ่ม `.gitignore` (`node_modules/`, `dist/`, `.wrangler/`, `.wr-home/`, `.npm-cache/`) ก่อน push ขึ้น Git
   — commit `7a8a330` บน GitHub คือ "Delete .gitignore" ซึ่งไม่ควรทำ

@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCatalog } from '../context/CatalogContext';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 // ─── Shared admin theme — single source of truth ───
 // Base = homepage (Storefront) tokens only:
@@ -37,6 +38,10 @@ function BrandMark() {
 export function AdminShell({ children, maxWidth = 'max-w-6xl' }) {
   const location = useLocation();
   const { store } = useCatalog();
+  const { user, logout } = useAdminAuth();
+
+  // Store onboarding is platform-admin only; hide it from store owners.
+  const nav = user && user.role !== 'admin' ? NAV.filter((item) => item.to !== '/clients') : NAV;
   return (
     <div className="admin-light min-h-screen flex flex-col md:flex-row bg-background text-foreground relative overflow-hidden">
       {/* Homepage ambient stack — same as Storefront */}
@@ -72,7 +77,7 @@ export function AdminShell({ children, maxWidth = 'max-w-6xl' }) {
           <BrandMark />
         </div>
         <nav className="flex flex-col gap-1.5 p-1 rounded-2xl bg-surface-500/60 border border-silver-900/70" aria-label="Admin">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = location.pathname === item.to;
             return (
               <Link
@@ -104,6 +109,23 @@ export function AdminShell({ children, maxWidth = 'max-w-6xl' }) {
             <p className="mt-1 text-[10px] text-warning">ไม่พบร้านนี้ — แสดงร้านเริ่มต้นแทน</p>
           )}
         </div>
+
+        {/* Signed-in admin */}
+        {user && (
+          <div className="mt-6 pt-4 border-t border-silver-900/70 text-[11px]">
+            <p className="truncate text-muted">{user.email}</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted/70">
+              {user.role === 'admin' ? 'Platform admin' : 'Store owner'}
+            </p>
+            <button
+              type="button"
+              onClick={logout}
+              className="mt-2 w-full rounded-lg border border-silver-800/80 bg-glass-light px-3 py-1.5 text-[11px] font-semibold text-silver-200 hover:text-foreground hover:border-silver-600/80 transition-colors"
+            >
+              ออกจากระบบ · Sign out
+            </button>
+          </div>
+        )}
 
         <div className="mt-auto pt-6 border-t border-silver-900/70 text-[11px] text-muted leading-relaxed">
           <p className="font-semibold text-silver-200 mb-1">Thai Market Dedicated</p>

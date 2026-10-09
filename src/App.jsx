@@ -23,6 +23,8 @@ import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
 import { CatalogProvider } from './context/CatalogContext';
+import { AdminAuthProvider } from './context/AdminAuthContext';
+import AdminGate from './components/AdminGate';
 import { trackPageView, captureUtmParams } from './lib/analytics';
 
 function SpaTracker() {
@@ -77,6 +79,7 @@ export default function App() {
       <ToastProvider>
         <AuthProvider>
         <CatalogProvider>
+        <AdminAuthProvider>
         <Router>
           <SpaTracker />
           <ToastContainer />
@@ -106,13 +109,14 @@ export default function App() {
               } />
             </Route>
 
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<AdminGate><Dashboard /></AdminGate>} />
             <Route path="/ads" element={<AdsConsole />} />
-            <Route path="/clients" element={<Tenants />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/clients" element={<AdminGate><Tenants /></AdminGate>} />
+            <Route path="/settings" element={<AdminGate><Settings /></AdminGate>} />
           </Routes>
           </Suspense>
         </Router>
+        </AdminAuthProvider>
         </CatalogProvider>
         </AuthProvider>
       </ToastProvider>

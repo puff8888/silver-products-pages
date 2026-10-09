@@ -1,4 +1,5 @@
 import { resolveStore } from '../../shared/store.js';
+import { getSessionUser, canAccessStore } from '../../shared/auth.js';
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -26,6 +27,14 @@ export async function onRequestGet(context) {
 
     const store = await resolveStore(env, request);
     const scope = store.clientId;
+
+    // Store analytics are private: only a signed-in user with access to this
+    // store may read them.
+    const user = await getSessionUser(env, request);
+    if (!user) return json({ error: 'unauthorized' }, 401);
+    if (!(await canAccessStore(env, user, scope))) {
+      return json({ error: 'forbidden', store: store.slug }, 403);
+    }
 
     const dateFilters = {
       today: "date(created_at) = date('now')",
