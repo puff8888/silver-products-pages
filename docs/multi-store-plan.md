@@ -87,7 +87,8 @@ POST /api/tenants {slug:'cafe'}         -> 409 · {slug:'bad slug!'} -> 400 · �
 - **token Shopify ต่อร้าน** — ตอนนี้ใช้ token คู่เดียวใน env กับทุกร้าน (ต้องมี encryption design)
 - **pixel ต่อร้าน** — คอลัมน์มีแล้ว แต่ยังฉีดจาก build-time env; ต้องฉีดตอน runtime ต่อร้าน
 - **แบรนด์ต่อร้าน** (โลโก้/สี) — ยังไม่มีคอลัมน์
-- **subdomain จริง** — ต้องตั้ง custom domain `*.sv9.store` (หรือ wildcard) ใน Cloudflare ก่อนใช้กับร้านจริง
+- **subdomain จริง** — ต้องตั้ง custom domain ก่อน ตรวจแล้วว่าใช้ `*.bruno-silver-products.pages.dev` เป็น subdomain ต่อร้าน **ไม่ได้** (DNS ของ `*.pages.dev` ชี้เข้า Cloudflare แต่ Host ที่ไม่ใช่ alias ของ deployment จะได้หน้า error ของ Cloudflare ไม่ใช่แอปเรา) และ `*.sv9.store` ยังไม่มี DNS record → ต้องเพิ่ม custom domain ให้ Pages project เช่น `*.sv9.store` (ถ้า Pages รองรับ wildcard) หรือเพิ่มทีละร้าน `cafe.sv9.store`
+- การทดสอบบน production จึงใช้ `?store=<slug>` ได้ แต่ subdomain จะทดสอบได้จริงหลังตั้ง domain เท่านั้น
 
 ### 3.2 ระยะถัดไป (แผนเดิม)
 
