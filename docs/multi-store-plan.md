@@ -90,7 +90,16 @@ POST /api/tenants {slug:'cafe'}         -> 409 · {slug:'bad slug!'} -> 400 · �
 - **subdomain จริง** — ต้องตั้ง custom domain ก่อน ตรวจแล้วว่าใช้ `*.bruno-silver-products.pages.dev` เป็น subdomain ต่อร้าน **ไม่ได้** (DNS ของ `*.pages.dev` ชี้เข้า Cloudflare แต่ Host ที่ไม่ใช่ alias ของ deployment จะได้หน้า error ของ Cloudflare ไม่ใช่แอปเรา) และ `*.sv9.store` ยังไม่มี DNS record → ต้องเพิ่ม custom domain ให้ Pages project เช่น `*.sv9.store` (ถ้า Pages รองรับ wildcard) หรือเพิ่มทีละร้าน `cafe.sv9.store`
 - การทดสอบบน production จึงใช้ `?store=<slug>` ได้ แต่ subdomain จะทดสอบได้จริงหลังตั้ง domain เท่านั้น
 
-### 3.2 ระยะถัดไป (แผนเดิม)
+### 3.2 ทำแล้วบางส่วน (ระยะ 2)
+
+- **ความลับต่อร้าน**: `shared/credentials.js` (AES-256-GCM, คีย์จาก `CREDENTIALS_KEY`) + ตาราง `tenant_credentials` + API เขียนอย่างเดียว
+  (`GET/POST/DELETE /api/tenants/credentials`) และ `/api/products` เลือกใช้ token ของร้านก่อน token กลาง
+- **ไดเรกทอรีร้าน + หน้าขาย**: `/api/stores` (สาธารณะ), หน้า `/stores`, หน้า `/sell` (+ `store_requests` ที่เขียนจริง)
+- **แบรนด์ต่อร้าน (บางส่วน)**: คอลัมน์ `tagline`/`brand_color`/`logo_url`/`is_public`/`plan` + `action:'update'` + Navbar แสดงชื่อร้าน
+- **ยังไม่ได้ทำ**: pixel ต่อร้านแบบ runtime (ยังใช้ build-time env), โลโก้/ธีมต่อร้านแบบเต็ม, subdomain จริง (ต้องตั้ง custom domain)
+- **ค้างที่ production**: migrate `0003_credentials_branding` + ตั้ง secret `CREDENTIALS_KEY` (ดู README หัวข้อ 11)
+
+### 3.3 ระยะถัดไป (แผนเดิม)
 
 **ระยะ 0 — ปิดช่องโหว่ ✅ ทำแล้ว**
 

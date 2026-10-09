@@ -280,7 +280,46 @@ WHERE channel IN ('Checkout', 'PDP') AND created_at < '2026-10-09 23:00:00';
 
 ---
 
-## 11. หมายเหตุการดูแลต่อ
+## 11. Per-store secrets, store directory และหน้าขาย (multi-store ระยะ 2)
+
+**ความลับต่อร้าน (AES-256-GCM)** — Cloudflare secret ผูกกับ Worker ไม่ใช่ tenant ดังนั้น token ของแต่ละร้านต้องอยู่ในฐานข้อมูล
+
+| ส่วน | รายละเอียด |
+|---|---|
+| `shared/credentials.js` | เข้ารหัสด้วย AES-GCM คีย์จาก secret `CREDENTIALS_KEY` (hex 64 ตัว หรือสตริงใดก็ได้ → SHA-256) · เก็บ `ciphertext`+`iv`+`key_version` · คืนได้แค่ `hint` (4 ตัวท้าย) |
+| `tenant_credentials` | `(tenant_id, provider)` — provider ที่รองรับ: `shopify_admin_token`, `shopify_storefront_token`, `shopify_webhook_secret`, `meta_capi_token`, `tiktok_events_token`, `line_oa_channel_token` |
+| `GET/POST/DELETE /api/tenants/credentials` | ต้องเป็น admin หรือสมาชิกของร้านนั้น · **เขียนได้อย่างเดียว** ไม่มีทางอ่านค่ากลับ |
+| `/api/products` | ใช้ token ของร้านก่อน token กลางใน env · ตอบ `credential_source: "tenant" \| "env"` เพื่อตรวจสอบได้ |
+
+**ไดเรกทอรีร้าน + หน้าขาย** (เทียบเท่า `/demo` และ `/sell` ของระบบ membership)
+
+| ส่วน | รายละเอียด |
+|---|---|
+| `GET /api/stores` | สาธารณะ — เฉพาะร้าน `status='active' AND is_public=1` · สร้าง storefront URL จาก host (subdomain จริง หรือ `?store=<slug>` บน localhost) |
+| `/stores` | หน้ารวมร้าน มีการ์ด แบรนด์/แท็กไลน์/plan |
+| `/sell` | หน้าขาย: 3 แพ็กเกจ (฿299/790/1,990) + ฟอร์มขอเปิดร้านที่ **เขียนลง D1 จริง** (`store_requests`) + honeypot + กันสแปม 5 ครั้ง/ชั่วโมง |
+| `GET /api/store-requests` | admin อ่านคิวคำขอ |
+| Navbar | แสดงชื่อร้านที่ resolve ได้ (แบรนด์ต่อร้าน) + เมนู Stores / Sell |
+| `tenants` คอลัมน์ใหม่ | `tagline`, `brand_color`, `logo_url`, `is_public`, `plan` · แก้ผ่าน `POST /api/tenants {action:'update'}` (เจ้าของร้านแก้เองได้) |
+
+### ⚠️ สถานะ production: ยังต้อง migrate 0003 + ตั้งคีย์
+
+`/api/stores` จะตอบ `"migration_0003_applied": false` และหน้าขายจะตอบ `503 migration_required` จนกว่าจะรัน 2 คำสั่งนี้
+(ทำในเครื่องคุณเอง — ผมรันให้ไม่ได้เพราะ OAuth token ของ wrangler หมดอายุ):
+
+```bash
+cd app
+npx wrangler login                                   # ถ้ายังไม่ล็อกอิน
+npx wrangler d1 execute bruno_storefront --remote --file=db/migrations/0003_credentials_branding.sql
+printf '%s' "$(openssl rand -hex 32)" | npx wrangler pages secret put CREDENTIALS_KEY --project-name bruno-silver-products
+```
+
+หลังตั้ง secret แล้วต้อง **deploy ใหม่** (push commit ใดก็ได้ หรือ `npx wrangler pages deploy dist`) — ไม่งั้น Functions ยังไม่เห็นค่า
+หมายเหตุ: โค้ดถูกทำให้ **ทนต่อการยังไม่ migrate** (ตอบ `migration_required`/ไดเรกทอรีว่าง แทน 500) จึง deploy ก่อนได้อย่างปลอดภัย
+
+---
+
+## 12. หมายเหตุการดูแลต่อ
 
 - เพิ่ม `.gitignore` (`node_modules/`, `dist/`, `.wrangler/`, `.wr-home/`, `.npm-cache/`) ก่อน push ขึ้น Git
   — commit `7a8a330` บน GitHub คือ "Delete .gitignore" ซึ่งไม่ควรทำ
