@@ -302,20 +302,17 @@ WHERE channel IN ('Checkout', 'PDP') AND created_at < '2026-10-09 23:00:00';
 | Navbar | แสดงชื่อร้านที่ resolve ได้ (แบรนด์ต่อร้าน) + เมนู Stores / Sell |
 | `tenants` คอลัมน์ใหม่ | `tagline`, `brand_color`, `logo_url`, `is_public`, `plan` · แก้ผ่าน `POST /api/tenants {action:'update'}` (เจ้าของร้านแก้เองได้) |
 
-### ⚠️ สถานะ production: ยังต้อง migrate 0003 + ตั้งคีย์
+### ✅ สถานะ production (migrate 0003 + ตั้งคีย์แล้ว)
 
-`/api/stores` จะตอบ `"migration_0003_applied": false` และหน้าขายจะตอบ `503 migration_required` จนกว่าจะรัน 2 คำสั่งนี้
-(ทำในเครื่องคุณเอง — ผมรันให้ไม่ได้เพราะ OAuth token ของ wrangler หมดอายุ):
-
-```bash
-cd app
-npx wrangler login                                   # ถ้ายังไม่ล็อกอิน
-npx wrangler d1 execute bruno_storefront --remote --file=db/migrations/0003_credentials_branding.sql
-printf '%s' "$(openssl rand -hex 32)" | npx wrangler pages secret put CREDENTIALS_KEY --project-name bruno-silver-products
+```
+migration 0003 (tenant_credentials + branding + store_requests) → applied
+env vars: AUTH_PEPPER = secret_text · CREDENTIALS_KEY = secret_text
 ```
 
-หลังตั้ง secret แล้วต้อง **deploy ใหม่** (push commit ใดก็ได้ หรือ `npx wrangler pages deploy dist`) — ไม่งั้น Functions ยังไม่เห็นค่า
-หมายเหตุ: โค้ดถูกทำให้ **ทนต่อการยังไม่ migrate** (ตอบ `migration_required`/ไดเรกทอรีว่าง แทน 500) จึง deploy ก่อนได้อย่างปลอดภัย
+**หมายเหตุ 2 ข้อ**
+- Pages API `PATCH .../deployment_configs.production.env_vars` **แทนที่ทั้ง map ไม่ใช่ merge** — ค่าที่ไม่ได้ส่งไปด้วยจะหาย
+  (รอบนี้ `PBKDF2_ITERATIONS` จึงหลุดออกไป ซึ่งไม่มีผล เพราะโค้ดใช้ค่าเริ่มต้น 20000 เมื่อไม่มีตัวแปรนี้)
+- secret ของ Pages มีผลกับ **deployment ใหม่เท่านั้น** — ต้อง push/deploy หลังแก้ค่า
 
 ---
 

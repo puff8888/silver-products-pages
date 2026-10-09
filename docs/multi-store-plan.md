@@ -97,7 +97,7 @@ POST /api/tenants {slug:'cafe'}         -> 409 · {slug:'bad slug!'} -> 400 · �
 - **ไดเรกทอรีร้าน + หน้าขาย**: `/api/stores` (สาธารณะ), หน้า `/stores`, หน้า `/sell` (+ `store_requests` ที่เขียนจริง)
 - **แบรนด์ต่อร้าน (บางส่วน)**: คอลัมน์ `tagline`/`brand_color`/`logo_url`/`is_public`/`plan` + `action:'update'` + Navbar แสดงชื่อร้าน
 - **ยังไม่ได้ทำ**: pixel ต่อร้านแบบ runtime (ยังใช้ build-time env), โลโก้/ธีมต่อร้านแบบเต็ม, subdomain จริง (ต้องตั้ง custom domain)
-- **ค้างที่ production**: migrate `0003_credentials_branding` + ตั้ง secret `CREDENTIALS_KEY` (ดู README หัวข้อ 11)
+- **production**: migrate `0003_credentials_branding` แล้ว + ตั้ง `CREDENTIALS_KEY` (secret) แล้ว — ดู README หัวข้อ 11
 
 ### 3.3 ระยะถัดไป (แผนเดิม)
 
