@@ -1,0 +1,12 @@
+name = "bruno-silver-products"
+compatibility_date = "2024-03-20"
+pages_build_output_dir = "dist"
+
+# D1 binding — verified against the live Pages project
+# (Pages → bruno-silver-products → Settings → bindings: DB -> bruno_storefront).
+# The previous value in this repo was a placeholder ("bruno_crm_db" /
+# xxxxxxxx-xxxx-...) which does not match production.
+[[d1_databases]]
+binding = "DB"
+database_name = "bruno_storefront"
+database_id = "a1abb0c8-09ee-49b5-9e79-94e20131032e"

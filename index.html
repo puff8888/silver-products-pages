@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="th" class="antialiased">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Silver Surface | Premium Curated Essentials</title>
+    <meta name="description" content="Silver Surface — Premium curated essentials with a sleek metallic silver &amp; space-gray aesthetic. Direct pocket e-commerce store with fast delivery across Thailand." />
+    <meta name="keywords" content="Silver Surface, premium store, curated essentials, metallic, Thailand, shop online, fashion, electronics, home" />
+    <meta property="og:site_name" content="Silver Surface" />
+    <meta property="og:title" content="Silver Surface | Premium Curated Essentials" />
+    <meta property="og:description" content="Premium curated essentials — chrome &amp; space-gray aesthetic. Thai market pocket e-commerce with PromptPay &amp; COD." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="th_TH" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Ctext x='16' y='22' font-size='18' text-anchor='middle' fill='%23f5f5f7' font-family='system-ui'%3ES%3C/text%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="preload" as="image" fetchpriority="high" href="/src/assets/hero-metallic.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://connect.facebook.net" crossorigin>
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
+    <link rel="preconnect" href="https://analytics.tiktok.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet"></noscript>
+
+    <!--
+      AD PIXELS — how this works (read before changing):
+
+      * Every ID below is a Vite HTML placeholder (%VITE_*%) that is replaced at
+        BUILD time from the environment (.env or the Cloudflare Pages build env).
+        There is no runtime configuration: to change a pixel you must rebuild.
+      * If an ID is missing or still a placeholder, the guard skips it — and the
+        SDK script itself is NOT downloaded.
+
+      audit fix #5: the loader calls (i.load() / fbevents.js injection) used to
+      run unconditionally, so the TikTok SDK was downloaded and executed on every
+      page even with no pixel configured. It then threw
+      "Uncaught TypeError: t.push is not a function" in the console on every
+      page load. Loaders are now inside the same guard as the init calls.
+    -->
+
+    <!-- ── 1. Google Analytics 4 (loader is guarded) ── -->
+    <script>
+      (function(){var id="%VITE_GA4_MEASUREMENT_ID%";if(id&&id.indexOf('XXXXXXXX')===-1&&id.indexOf('%VITE_')===-1){var s=document.createElement('script');s.src='https://www.googletagmanager.com/gtag/js?id='+id;s.async=1;document.head.appendChild(s);}})();
+    </script>
+
+    <!-- ── 2. Meta Pixel (Facebook / Instagram) ── -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];}(window, document);
+      (function(){
+        var META_PIXEL_ID="%VITE_META_PIXEL_ID%";
+        if(!META_PIXEL_ID || META_PIXEL_ID.indexOf('1234567890')!==-1 || META_PIXEL_ID.indexOf('%VITE_')!==-1) return;
+        var t=document.createElement('script');t.async=!0;
+        t.src='https://connect.facebook.net/en_US/fbevents.js';
+        var ss=document.getElementsByTagName('script')[0];
+        ss.parentNode.insertBefore(t,ss);
+        fbq('init',META_PIXEL_ID);fbq('track','PageView');
+      })();
+    </script>
+
+    <!-- ── 3. Google tag (gtag.js) queue ── -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      (function(){var GA4_ID="%VITE_GA4_MEASUREMENT_ID%";if(GA4_ID&&GA4_ID.indexOf('XXXXXXXX')===-1&&GA4_ID.indexOf('%VITE_')===-1){gtag('config',GA4_ID,{send_page_view:false});}})();
+    </script>
+
+    <!-- ── 4. TikTok Pixel (SDK is only loaded when an ID is configured) ── -->
+    <script>
+      !function (w, d, t) {
+        w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
+        ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];
+        ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};
+        for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);
+        ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};
+        ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";
+          ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=r;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};
+          var o=d.createElement("script");o.type="text/javascript";o.async=!0;
+          o.src=r+"?sdkid="+e+"&lib="+t;
+          var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+      }(window, document, 'ttq');
+      (function(){
+        var PID="%VITE_TIKTOK_PIXEL_ID%";
+        if(!PID || PID.indexOf('1234567890')!==-1 || PID.indexOf('%VITE_')!==-1) return;
+        ttq.load(PID);
+        ttq.page();
+      })();
+    </script>
+
+    <!-- ── 5. LINE Tag ── -->
+    <script>
+      window.lintrk = window.lintrk || function(a,b){
+        if(!window.lintrk.q){window.lintrk.q=[];}
+        window.lintrk.q.push([a,b]);
+      };
+      window.lintrk.q = window.lintrk.q || [];
+      (function(){var LINE_TAG_ID="%VITE_LINE_TAG_ID%";if(LINE_TAG_ID&&LINE_TAG_ID.indexOf('XXXXXXXX')===-1&&LINE_TAG_ID.indexOf('%VITE_')===-1){lintrk('init',LINE_TAG_ID);lintrk('track','PageView');}})();
+    </script>
+  </head>
+  <body class="min-h-dvh bg-background text-foreground">
+    <!-- Meta Pixel noscript fallback (only injected when an ID is configured) -->
+    <script>
+      (function(){var PID="%VITE_META_PIXEL_ID%";if(PID&&PID.indexOf('1234567890')===-1&&PID.indexOf('%VITE_')===-1){
+        var ns=document.createElement('noscript');
+        var img='<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id='+encodeURIComponent(PID)+'&ev=PageView&noscript=1" />';
+        ns.innerHTML=img;document.body.appendChild(ns);
+      }})();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

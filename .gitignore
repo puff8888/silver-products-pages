@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.wrangler/
+.wr-home/
+.npm-cache/
+*.log
+.DS_Store
+
+# ค่าจริงในเครื่อง (อย่า commit) — ใช้ .env.example เป็นแม่แบบ
+.env
+.env.local
+.env.*.local
