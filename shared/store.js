@@ -19,6 +19,7 @@
 
 const DEFAULT_ROOT_DOMAINS = [
   'bruno-silver-products.pages.dev',
+  'pkkoko.store',
   'sv9.store',
   'sv9.workers.dev',
   'localhost',

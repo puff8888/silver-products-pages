@@ -16,18 +16,21 @@ const json = (body, status = 200) =>
   });
 
 function storefrontUrl(slug, host, rootDomains) {
-  const isLocal =
-    !host ||
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+  const isLocal = !host || host === 'localhost' || host.endsWith('.localhost') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+
+  // Only a real custom domain can host per-store subdomains: *.pages.dev
+  // resolves in DNS but a Host that is not a deployment alias is answered by
+  // Cloudflare rather than by this project, so those links would 404.
+  const customRoots = rootDomains.filter(
+    (root) => !root.endsWith('.pages.dev') && !root.endsWith('.workers.dev') && root !== 'localhost' && !/^\d/.test(root)
+  );
 
   if (!isLocal) {
-    for (const root of rootDomains) {
+    for (const root of customRoots) {
       if (host === root || host.endsWith(`.${root}`)) return `https://${slug}.${root}`;
     }
   }
-  // Local development / unknown host: the app accepts ?store=<slug>
+  // Fallback that always works: the app accepts ?store=<slug>
   return `/?store=${encodeURIComponent(slug)}`;
 }
 
