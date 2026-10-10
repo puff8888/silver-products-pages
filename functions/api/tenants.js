@@ -28,6 +28,7 @@ const json = (body, status = 200) =>
 const TENANT_COLUMNS = `
   t.id, t.name, t.slug, t.shopify_domain, t.contact_email, t.status,
   t.tagline, t.brand_color, t.logo_url, t.is_public, t.plan,
+  t.meta_pixel_id, t.tiktok_pixel_id, t.line_tag_id,
   t.created_at, t.approved_at,
   (SELECT count(*) FROM sku_templates s WHERE s.client_id = t.id) AS templates,
   (SELECT count(*) FROM tenant_credentials c WHERE c.tenant_id = t.id) AS credentials_set
@@ -124,6 +125,11 @@ export async function onRequestPost(context) {
       if (typeof body.logo_url === 'string') set('logo_url', body.logo_url.trim() || null);
       if (body.is_public !== undefined) set('is_public', body.is_public ? 1 : 0);
       if (typeof body.plan === 'string' && body.plan.trim()) set('plan', body.plan.trim());
+      // Per-store tracking ids (public values — they end up in the page anyway),
+      // applied at runtime by src/components/StoreRuntime.jsx
+      if (typeof body.meta_pixel_id === 'string') set('meta_pixel_id', body.meta_pixel_id.trim() || null);
+      if (typeof body.tiktok_pixel_id === 'string') set('tiktok_pixel_id', body.tiktok_pixel_id.trim() || null);
+      if (typeof body.line_tag_id === 'string') set('line_tag_id', body.line_tag_id.trim() || null);
 
       if (!fields.length) return json({ error: 'nothing_to_update' }, 400);
 

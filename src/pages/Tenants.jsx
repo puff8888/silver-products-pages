@@ -123,6 +123,9 @@ export default function Tenants() {
       shopify_domain: tenant.shopify_domain || '',
       plan: tenant.plan || 'starter',
       is_public: !!tenant.is_public,
+      meta_pixel_id: tenant.meta_pixel_id || '',
+      tiktok_pixel_id: tenant.tiktok_pixel_id || '',
+      line_tag_id: tenant.line_tag_id || '',
     });
   };
 
@@ -433,6 +436,28 @@ export default function Tenants() {
               <input type="checkbox" checked={!!panelForm.is_public} onChange={(e) => setPanelForm({ ...panelForm, is_public: e.target.checked })} className="size-4" />
               <span className="text-sm text-muted">แสดงร้านนี้ในไดเรกทอรีสาธารณะ (/stores)</span>
             </label>
+
+            <div className="sm:col-span-2 mt-2 border-t border-silver-900/70 pt-4">
+              <h3 className="text-sm font-bold text-foreground">พิกเซลโฆษณาของร้านนี้</h3>
+              <p className="mt-1 text-xs text-muted leading-relaxed">
+                ใช้ค่าเหล่านี้ตอนเปิดหน้าเว็บ (runtime) — แต่ละร้านมีพิกเซลของตัวเอง ไม่ใช้ค่าตอน build
+                ค่าเหล่านี้เป็นค่าสาธารณะ (ฝังอยู่ในหน้าเว็บอยู่แล้ว) ไม่ใช่ความลับ
+              </p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-silver-200">Meta Pixel ID</span>
+                  <input value={panelForm.meta_pixel_id || ''} onChange={(e) => setPanelForm({ ...panelForm, meta_pixel_id: e.target.value })} placeholder="123456789012345" className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 font-mono text-sm" />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-silver-200">TikTok Pixel ID</span>
+                  <input value={panelForm.tiktok_pixel_id || ''} onChange={(e) => setPanelForm({ ...panelForm, tiktok_pixel_id: e.target.value })} placeholder="C1234ABCD5678" className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 font-mono text-sm" />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-silver-200">LINE Tag ID</span>
+                  <input value={panelForm.line_tag_id || ''} onChange={(e) => setPanelForm({ ...panelForm, line_tag_id: e.target.value })} placeholder="LNT-…" className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 font-mono text-sm" />
+                </label>
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
