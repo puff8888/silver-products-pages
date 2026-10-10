@@ -1,5 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ToastContainer from './components/ToastContainer';
@@ -24,7 +24,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
-import { CatalogProvider } from './context/CatalogContext';
+import { CatalogProvider, useCatalog } from './context/CatalogContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
 import AdminGate from './components/AdminGate';
 import StoreRuntime from './components/StoreRuntime';
@@ -50,6 +50,21 @@ function SpaTracker() {
     trackPageView(location.pathname + location.search);
   }, [location.pathname, location.search]);
   return null;
+}
+
+/**
+ * The apex/root domain is the platform ("เหมือน Shopify"): its home page is the
+ * store directory. Each store lives on its own <slug>.<domain>.
+ */
+function Home() {
+  const { store, storeLoading } = useCatalog();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!storeLoading && store && store.is_platform) {
+      navigate('/stores', { replace: true });
+    }
+  }, [storeLoading, store, navigate]);
+  return <Storefront />;
 }
 
 function Layout() {
@@ -92,7 +107,7 @@ export default function App() {
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Layout />}>
-              <Route index element={<Storefront />} />
+              <Route index element={<Home />} />
               <Route path="/product" element={<Catalog />} />
               <Route path="/product/:id" element={<ProductDetail />} />
               <Route path="/cart" element={<Cart />} />

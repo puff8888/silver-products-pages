@@ -107,6 +107,11 @@ export async function resolveStore(env, request) {
   const override = overrideRaw && isValidSlug(overrideRaw.toLowerCase()) ? overrideRaw.toLowerCase() : null;
   const fromHost = slugFromHost(host, roots);
 
+  // "เหมือน Shopify": apex (รากโดเมน) = หน้าระบบ/ไดเรกทอรี, <slug>.<root> = หน้าร้าน.
+  // เมื่อ host คือ root โดเมนพอดีและไม่ได้ระบุร้าน (ไม่มี ?store= / subdomain) →
+  // นี่คือ "โหมดแพลตฟอร์ม" ไม่ใช่ร้านใดร้านหนึ่ง.
+  const isPlatformHost = !override && !fromHost && roots.includes(host);
+
   let requestedSlug = null;
   let source = 'default';
   if (override) {
@@ -115,6 +120,19 @@ export async function resolveStore(env, request) {
   } else if (fromHost) {
     requestedSlug = fromHost;
     source = 'subdomain';
+  }
+
+  if (isPlatformHost) {
+    return {
+      isPlatform: true,
+      slug: null,
+      clientId: null,
+      tenant: null,
+      resolved: false,
+      source: 'platform',
+      requestedSlug: null,
+      host,
+    };
   }
 
   let tenant = null;
@@ -156,7 +174,19 @@ export async function resolveStore(env, request) {
 /** Public (non-secret) store config for the client. */
 export function publicStore(store) {
   const t = store.tenant || {};
+  if (store.isPlatform) {
+    return {
+      is_platform: true,
+      slug: null,
+      name: null,
+      resolved: false,
+      resolution: 'platform',
+      host: store.host,
+      pixels: { meta: null, tiktok: null, line: null },
+    };
+  }
   return {
+    is_platform: false,
     slug: store.slug,
     name: t.name || null,
     status: t.status || null,

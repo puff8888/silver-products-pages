@@ -261,6 +261,15 @@ export async function onRequestGet(context) {
   // Multi-store: the store's own Shopify domain (tenants.shopify_domain) wins;
   // SHOPIFY_STORE_URL stays as the fallback for single-store deployments.
   const resolved = await resolveStore(env, request).catch(() => null);
+
+  // Apex/root host = the platform, not a store: there is no catalog to serve.
+  if (resolved && resolved.isPlatform) {
+    return json(
+      { error: 'platform_host', hint: 'เปิดร้านผ่าน <slug>.domain หรือ ?store=<slug>' },
+      503
+    );
+  }
+
   const tenantDomain = resolved && resolved.tenant ? resolved.tenant.shopify_domain : null;
   const store = String(tenantDomain || env.SHOPIFY_STORE_URL || '')
     .replace(/^https?:\/\//, '')
