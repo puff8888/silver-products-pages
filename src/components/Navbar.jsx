@@ -15,18 +15,28 @@ const NAV_LINKS = [
 ];
 
 function BrandMark() {
-  // Multi-store: show the resolved store's own brand when there is one.
+  // Multi-store: show the resolved store's own brand (name, logo, colour).
   const { store } = useCatalog();
   const brand = store && store.name ? store.name : 'SILVER SURFACE';
-  const tagline = store && store.slug && store.name ? store.slug : null;
+  const tagline = store && store.slug && store.name ? (store.tagline || store.slug) : null;
+  const brandColor = store && store.brand_color && /^#[0-9a-f]{6}$/i.test(store.brand_color) ? store.brand_color : null;
+  const logo = store && store.logo_url ? store.logo_url : null;
+
   return (
     <Link to="/" className="flex items-center gap-2.5 group/brand shrink-0" aria-label={`${brand} home`}>
-      <div className="flex items-center justify-center size-8 rounded-lg bg-metallic-button text-background shadow-apple-sm border border-silver-400/30
+      <div
+        className="flex items-center justify-center size-8 rounded-lg bg-metallic-button text-background shadow-apple-sm border border-silver-400/30
                       group-hover/brand:bg-metallic-button-hover group-hover/brand:shadow-apple group-hover/brand:scale-105
-                      transition-all duration-220 ease-apple">
-        <svg width="16" height="16" viewBox="0 0 76 65" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="currentColor" />
-        </svg>
+                      transition-all duration-220 ease-apple overflow-hidden"
+        style={brandColor ? { backgroundColor: brandColor } : undefined}
+      >
+        {logo ? (
+          <img src={logo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 76 65" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="currentColor" />
+          </svg>
+        )}
       </div>
       <span className="font-display font-sans text-[14px] font-extrabold tracking-apple-tight text-foreground
                        group-hover/brand:opacity-80 transition-opacity duration-200 ease-apple hidden xs:inline sm:inline">

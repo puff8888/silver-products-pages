@@ -74,14 +74,15 @@ export async function findTenant(env, slug) {
   if (!slug) return null;
   try {
     const { results } = await env.DB.prepare(
-      `SELECT id, name, slug, status, shopify_domain, meta_pixel_id, tiktok_pixel_id, line_tag_id
+      `SELECT id, name, slug, status, shopify_domain, meta_pixel_id, tiktok_pixel_id, line_tag_id,
+              tagline, brand_color, logo_url, plan
          FROM tenants
         WHERE slug = ? OR id = ?
         LIMIT 1`
     ).bind(slug, slug).all();
     return results && results[0] ? results[0] : null;
   } catch (err) {
-    // Tolerate a database that has not had the slug migration applied yet.
+    // Tolerate a database that has not had every migration applied yet.
     const { results } = await env.DB.prepare(
       `SELECT id, name, id AS slug, status, shopify_domain, meta_pixel_id, tiktok_pixel_id, line_tag_id
          FROM tenants
@@ -161,7 +162,14 @@ export function publicStore(store) {
     resolved: store.resolved,
     resolution: store.source,
     host: store.host,
+    // branding — used by the storefront theme and the store directory
+    tagline: t.tagline || null,
+    brand_color: t.brand_color || null,
+    logo_url: t.logo_url || null,
+    plan: t.plan || null,
     shopify_configured: !!t.shopify_domain,
+    // per-store tracking ids, delivered at runtime: build-time env can only ever
+    // hold one store's ids, so each store carries its own here
     pixels: {
       meta: t.meta_pixel_id || null,
       tiktok: t.tiktok_pixel_id || null,

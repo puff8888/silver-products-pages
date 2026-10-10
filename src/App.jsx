@@ -27,6 +27,7 @@ import { AuthProvider } from './context/AuthContext';
 import { CatalogProvider } from './context/CatalogContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
 import AdminGate from './components/AdminGate';
+import StoreRuntime from './components/StoreRuntime';
 import { trackPageView, captureUtmParams } from './lib/analytics';
 
 function SpaTracker() {
@@ -84,6 +85,7 @@ export default function App() {
         <AdminAuthProvider>
         <Router>
           <SpaTracker />
+          <StoreRuntime />
           <ToastContainer />
           <FloatingDock />
 
