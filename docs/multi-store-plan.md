@@ -136,3 +136,12 @@ POST /api/tenants {slug:'cafe'}         -> 409 · {slug:'bad slug!'} -> 400 · �
 2. **registry**: แยกกันแต่ใช้ `slug`/`id` ชุดเดียวกัน (เริ่มง่าย) · หรืออ่าน `tenants` จาก membership-d1 โดยตรง (บัญชีเดียวจริง แต่ผูกกันแน่นขึ้น) · หรือทำ registry API กลาง
 3. **auth**: ใช้ระบบ login ของ membership (`users`) เป็น identity กลาง หรือทำ auth ของโปรเจกต์นี้เอง
 4. **pkkoko.store**: ต้องการให้เป็น "ร้านหนึ่ง" ในระบบนี้ (มีหน้าร้านสินค้าแยก) หรือแค่ทำให้ระบบเรารองรับหลายร้านโดยยังไม่ผูกกับร้านนั้น
+
+## 5. บทเรียนจากการตั้งค่า production (auth)
+
+- **Pages API `PATCH .../env_vars` แทนที่ทั้ง map** — ต้องส่งค่าที่ต้องการเก็บทั้งหมดไปด้วยทุกครั้ง ไม่งั้นค่าที่ไม่ได้ส่งจะหาย
+  (ต่างจาก Workers secrets ที่มี endpoint เฉพาะ)
+- **secret มีผลกับ deployment ใหม่เท่านั้น** — ตั้งค่าแล้วต้อง deploy/retry ใหม่; การ "retry deployment" ผ่าน API
+  ในบัญชีนี้ไม่สร้าง deployment ใหม่ จึงใช้การ push commit แทน (ได้ผลแน่นอน)
+- **secret ที่ตั้งด้วย `echo` มี newline ติดท้าย** → กรอกจากฟอร์มไม่ทางตรงได้ ⇒ `/api/auth/setup` จึงตัดช่องว่างหัว-ท้ายทั้งสองฝั่ง
+- ถ้าจะหมุน `AUTH_PEPPER` / `CREDENTIALS_KEY` ต้องตรวจก่อนว่า `users` และ `tenant_credentials` ว่าง (ไม่งั้นรหัสผ่าน/credential เดิมจะใช้ไม่ได้)
