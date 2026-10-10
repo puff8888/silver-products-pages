@@ -29,7 +29,11 @@ const json = (body, status = 200, extraHeaders = {}) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', ...extraHeaders },
   });
 
-const API_VERSION = '2024-10';
+// Shopify retires API versions after ~12 months, and a sunset version makes the
+// Admin API answer 401 (which looks exactly like a bad token). Keep this recent
+// and allow an override without a code change.
+const DEFAULT_API_VERSION = '2026-07';
+const apiVersion = (env) => String(env.SHOPIFY_API_VERSION || DEFAULT_API_VERSION);
 
 const COLOR_HEX = {
   black: '#1a1a1a', midnight: '#12121c', 'space gray': '#4b4b52', graphite: '#3a3a3f',
@@ -166,28 +170,36 @@ function mapStorefrontProduct(node) {
   };
 }
 
-async function fetchAdmin(base, token) {
-  const res = await fetch(`https://${base}/admin/api/${API_VERSION}/products.json?limit=250&status=active`, {
+async function fetchAdmin(base, token, version) {
+  const res = await fetch(`https://${base}/admin/api/${version}/products.json?limit=250&status=active`, {
     headers: { 'X-Shopify-Access-Token': token, Accept: 'application/json' },
   });
-  if (!res.ok) throw new Error(`Shopify Admin API ${res.status}`);
+  if (!res.ok) {
+    // Shopify explains itself in the body — keep it, otherwise a sunset API
+    // version and a revoked token are indistinguishable.
+    const body = await res.text().catch(() => '');
+    throw new Error(`Shopify Admin API ${res.status} (version ${version}): ${body.slice(0, 180)}`);
+  }
   const data = await res.json();
   return (data.products || []).map(mapAdminProduct);
 }
 
-async function fetchStorefront(base, token) {
+async function fetchStorefront(base, token, version) {
   const query = `query Products($n:Int!){ products(first:$n){ edges{ node{
       id handle title descriptionHtml vendor productType tags
       options{ name values }
       images(first:10){ edges{ node{ url } } }
       variants(first:50){ edges{ node{ id title availableForSale price{ amount } compareAtPrice{ amount } } } }
   } } } }`;
-  const res = await fetch(`https://${base}/api/${API_VERSION}/graphql.json`, {
+  const res = await fetch(`https://${base}/api/${version}/graphql.json`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Shopify-Storefront-Access-Token': token },
     body: JSON.stringify({ query, variables: { n: 250 } }),
   });
-  if (!res.ok) throw new Error(`Shopify Storefront API ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Shopify Storefront API ${res.status} (version ${version}): ${body.slice(0, 180)}`);
+  }
   const data = await res.json();
   if (data.errors) throw new Error(`Shopify Storefront API: ${data.errors[0]?.message || 'error'}`);
   const edges = data.data?.products?.edges || [];
@@ -228,10 +240,10 @@ export async function onRequestGet(context) {
     let products;
     let source;
     if (adminToken) {
-      products = await fetchAdmin(store, adminToken);
+      products = await fetchAdmin(store, adminToken, apiVersion(env));
       source = 'shopify-admin';
     } else {
-      products = await fetchStorefront(store, storefrontToken);
+      products = await fetchStorefront(store, storefrontToken, apiVersion(env));
       source = 'shopify-storefront';
     }
 
@@ -244,6 +256,7 @@ export async function onRequestGet(context) {
       store,
       store_slug: resolved ? resolved.slug : null,
       credential_source: credentialSource,
+      api_version: apiVersion(env),
     });
   } catch (err) {
     console.error('Shopify catalog error:', err);
