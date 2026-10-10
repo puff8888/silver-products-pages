@@ -1,4 +1,4 @@
-import { resolveStore } from '../../shared/store.js';
+import { resolveStore, rootDomains } from '../../shared/store.js';
 
 /**
  * GET /api/stores — public directory of stores on this platform.
@@ -41,8 +41,7 @@ export async function onRequestGet(context) {
     const host = String(request.headers.get('host') || url.host || '').toLowerCase().split(':')[0];
     const current = await resolveStore(env, request);
 
-    const roots = String(env.STORES_ROOT_DOMAINS || 'bruno-silver-products.pages.dev,sv9.store,localhost,127.0.0.1')
-      .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const roots = rootDomains(env);
 
     let results = [];
     let migrated = true;

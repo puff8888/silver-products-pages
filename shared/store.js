@@ -47,7 +47,7 @@ function parseCookie(header, name) {
   return hit ? decodeURIComponent(hit.slice(name.length + 1)) : null;
 }
 
-function rootDomains(env) {
+export function rootDomains(env) {
   const configured = String(env.STORES_ROOT_DOMAINS || '')
     .split(',')
     .map((s) => s.trim().toLowerCase())
