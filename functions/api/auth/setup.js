@@ -28,9 +28,17 @@ export async function onRequestPost(context) {
     return json({ error: 'setup_disabled', hint: 'ตั้งค่า ADMIN_SETUP_TOKEN ที่ Pages → Environment variables ก่อน' }, 503);
   }
 
+  // Compare trimmed: a secret pasted with a trailing newline (e.g. `echo value`)
+  // is otherwise impossible to match from a form field.
   const provided = typeof body.token === 'string' ? body.token : '';
-  if (!provided || provided !== expected) {
-    return json({ error: 'invalid_setup_token' }, 403);
+  if (!provided || provided.trim() !== expected.trim()) {
+    return json(
+      {
+        error: 'invalid_setup_token',
+        hint: 'ค่าที่กรอกต้องตรงกับ ADMIN_SETUP_TOKEN ใน Cloudflare (ระบบตัดช่องว่างหัว-ท้ายให้แล้ว)',
+      },
+      403
+    );
   }
 
   try {
