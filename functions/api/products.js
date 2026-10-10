@@ -79,14 +79,16 @@ function stripHtml(html) {
 }
 
 function categoryOf(product) {
-  const raw = product.product_type || (product.tags || []).find((t) => t && !t.includes(':')) || '';
-  return String(raw).trim().toLowerCase().replace(/\s+/g, '-');
+  const raw = String(product.product_type || '').trim();
+  const slug = raw.toLowerCase().replace(/\s+/g, '-');
+  return slug || 'other';
 }
 
 function swatchesOf(product) {
-  const colorOption =
-    (product.options || []).find((o) => /colou?r|สี/i.test(o.name || '')) ||
-    (product.options || []).find((o) => (o.values || []).length > 1);
+  // Only a colour-like option becomes a swatch. Real stores often have only
+  // Size (SM/ML/LXL…) — turning those into coloured dots was misleading, so
+  // without a colour option the product gets one neutral swatch.
+  const colorOption = (product.options || []).find((o) => /colou?r|สี/i.test(o.name || ''));
 
   if (colorOption && Array.isArray(colorOption.values) && colorOption.values.length) {
     return colorOption.values.map((value) => ({
@@ -206,22 +208,45 @@ async function fetchStorefront(base, token, version) {
   return edges.map((e) => mapStorefrontProduct(e.node));
 }
 
+/**
+ * Public catalog — the store's own /products.json. No token at all.
+ *
+ * Used as the last resort so a store can be connected by domain alone. It is the
+ * endpoint Shopify themes use; it returns published products only and no
+ * inventory counts, so the authenticated APIs are still preferred when a token
+ * works.
+ */
+async function fetchPublicCatalog(base) {
+  const res = await fetch(`https://${base}/products.json?limit=250`, {
+    headers: {
+      Accept: 'application/json',
+      // Shopify's bot protection answers 403 to requests without a user agent
+      // (Workers' fetch sends none) while curl, which identifies itself, passes.
+      'User-Agent': 'SilverSurfaceStorefront/1.0 (+https://bruno-silver-products.pages.dev)',
+      'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Shopify public catalog ${res.status}: ${body.slice(0, 120)}`);
+  }
+  const data = await res.json();
+  return (data.products || []).map(mapAdminProduct);
+}
+
 export async function onRequestGet(context) {
   const { env, request } = context;
 
   // Multi-store: the store's own Shopify domain (tenants.shopify_domain) wins;
   // SHOPIFY_STORE_URL stays as the fallback for single-store deployments.
-  // NOTE: per-store access tokens are not supported yet — one token pair in the
-  // environment is used for whichever store the request resolved to. Storing a
-  // token per tenant (encrypted) is the next step in docs/multi-store-plan.md.
   const resolved = await resolveStore(env, request).catch(() => null);
   const tenantDomain = resolved && resolved.tenant ? resolved.tenant.shopify_domain : null;
   const store = String(tenantDomain || env.SHOPIFY_STORE_URL || '')
     .replace(/^https?:\/\//, '')
     .replace(/\/$/, '');
 
-  // Token: the store's own encrypted credential wins, then the shared env token
-  // (single-store deployments and local development keep working).
+  // Credentials, per store first: Admin token (encrypted in tenant_credentials),
+  // then Storefront token, then the shared env pair.
   const tenantId = resolved && resolved.clientId ? resolved.clientId : null;
   const tenantAdminToken = tenantId ? await getCredential(env, tenantId, 'shopify_admin_token') : null;
   const tenantStorefrontToken = tenantId ? await getCredential(env, tenantId, 'shopify_storefront_token') : null;
@@ -229,46 +254,59 @@ export async function onRequestGet(context) {
   const storefrontToken = tenantStorefrontToken || env.SHOPIFY_STOREFRONT_TOKEN;
   const credentialSource = tenantAdminToken || tenantStorefrontToken ? 'tenant' : (adminToken || storefrontToken ? 'env' : 'none');
 
-  const missing = [];
-  if (!store) missing.push('tenants.shopify_domain (หรือ SHOPIFY_STORE_URL)');
-  if (!adminToken && !storefrontToken) missing.push('SHOPIFY_ADMIN_API_TOKEN (or SHOPIFY_STOREFRONT_TOKEN) หรือ token ของร้านใน tenant_credentials');
-  if (missing.length) {
-    return json({ error: 'shopify_not_configured', missing, store: resolved ? resolved.slug : null }, 503);
+  if (!store) {
+    return json(
+      { error: 'shopify_not_configured', missing: ['tenants.shopify_domain (หรือ SHOPIFY_STORE_URL)'], store: resolved ? resolved.slug : null },
+      503
+    );
   }
 
-  try {
-    let products;
-    let source;
-    if (adminToken) {
-      products = await fetchAdmin(store, adminToken, apiVersion(env));
-      source = 'shopify-admin';
-    } else {
-      products = await fetchStorefront(store, storefrontToken, apiVersion(env));
-      source = 'shopify-storefront';
-    }
+  // Try each available source in order of data quality. An invalid token (401)
+  // must not block the store: the public catalog still works, which is what a
+  // store gets connected with by domain alone.
+  const attempts = [];
+  if (adminToken) {
+    attempts.push({ source: 'shopify-admin', credential: tenantAdminToken ? 'tenant' : 'env', run: () => fetchAdmin(store, adminToken, apiVersion(env)) });
+  }
+  if (storefrontToken) {
+    attempts.push({ source: 'shopify-storefront', credential: tenantStorefrontToken ? 'tenant' : 'env', run: () => fetchStorefront(store, storefrontToken, apiVersion(env)) });
+  }
+  attempts.push({ source: 'shopify-public', credential: 'none', run: () => fetchPublicCatalog(store) });
 
-    // Drop products with no usable image/price — the UI needs both.
-    const usable = products.filter((p) => p.slug && p.image && p.price > 0);
-    return json({
-      products: usable,
-      source,
-      count: usable.length,
+  const failures = [];
+  for (const attempt of attempts) {
+    try {
+      const products = await attempt.run();
+      const usable = products.filter((p) => p.slug && p.image && p.price > 0);
+      if (usable.length === 0) {
+        failures.push(`${attempt.source}: no usable products`);
+        continue;
+      }
+      return json({
+        products: usable,
+        source: attempt.source,
+        count: usable.length,
+        store,
+        store_slug: resolved ? resolved.slug : null,
+        credential_source: attempt.credential,
+        api_version: apiVersion(env),
+        ...(failures.length ? { earlier_failures: failures } : {}),
+      });
+    } catch (err) {
+      failures.push(`${attempt.source}: ${String(err.message || err).slice(0, 160)}`);
+      console.error(`catalog source failed (${attempt.source}):`, err);
+    }
+  }
+
+  return json(
+    {
+      error: 'shopify_fetch_failed',
+      detail: failures.join(' | '),
       store,
       store_slug: resolved ? resolved.slug : null,
       credential_source: credentialSource,
       api_version: apiVersion(env),
-    });
-  } catch (err) {
-    console.error('Shopify catalog error:', err);
-    return json(
-      {
-        error: 'shopify_fetch_failed',
-        detail: String(err.message || err),
-        store,
-        store_slug: resolved ? resolved.slug : null,
-        credential_source: credentialSource,
-      },
-      502
-    );
-  }
+    },
+    502
+  );
 }
