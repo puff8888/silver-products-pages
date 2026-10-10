@@ -35,6 +35,27 @@ const json = (body, status = 200, extraHeaders = {}) =>
 const DEFAULT_API_VERSION = '2026-07';
 const apiVersion = (env) => String(env.SHOPIFY_API_VERSION || DEFAULT_API_VERSION);
 
+/**
+ * Thai prices include 7% VAT. The Admin REST API and the public /products.json
+ * return the tax-exclusive price, so the storefront under-charges unless the
+ * tax is added back. The Storefront API uses inContext(country: TH) instead and
+ * already returns market-inclusive prices, so it is never multiplied.
+ */
+function taxMultiplier(env) {
+  const raw = parseFloat(env.SHOPIFY_TAX_MULTIPLIER || '1.07');
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+}
+
+function applyTaxMultiplier(products, mult) {
+  if (mult === 1) return products;
+  const round2 = (n) => Math.round(n * 100) / 100;
+  return products.map((p) => ({
+    ...p,
+    price: round2(p.price * mult),
+    originalPrice: p.originalPrice ? round2(p.originalPrice * mult) : null,
+  }));
+}
+
 const COLOR_HEX = {
   black: '#1a1a1a', midnight: '#12121c', 'space gray': '#4b4b52', graphite: '#3a3a3f',
   white: '#f5f5f5', cloud: '#f2f2f2', ivory: '#f6f1e7', cream: '#f3ece0',
@@ -187,7 +208,7 @@ async function fetchAdmin(base, token, version) {
 }
 
 async function fetchStorefront(base, token, version) {
-  const query = `query Products($n:Int!){ products(first:$n){ edges{ node{
+  const query = `query Products($n:Int!){ products(first:$n, inContext: {country: TH}){ edges{ node{
       id handle title descriptionHtml vendor productType tags
       options{ name values }
       images(first:10){ edges{ node{ url } } }
@@ -277,7 +298,12 @@ export async function onRequestGet(context) {
   for (const attempt of attempts) {
     try {
       const products = await attempt.run();
-      const usable = products.filter((p) => p.slug && p.image && p.price > 0);
+      // Authenticated (non-storefront) and public sources return tax-exclusive
+      // prices; Storefront uses inContext(country: TH) and is already correct.
+      const taxed = attempt.source === 'shopify-storefront'
+        ? products
+        : applyTaxMultiplier(products, taxMultiplier(env));
+      const usable = taxed.filter((p) => p.slug && p.image && p.price > 0);
       if (usable.length === 0) {
         failures.push(`${attempt.source}: no usable products`);
         continue;
@@ -290,6 +316,7 @@ export async function onRequestGet(context) {
         store_slug: resolved ? resolved.slug : null,
         credential_source: attempt.credential,
         api_version: apiVersion(env),
+        tax_multiplier: attempt.source === 'shopify-storefront' ? 1 : taxMultiplier(env),
         ...(failures.length ? { earlier_failures: failures } : {}),
       });
     } catch (err) {
