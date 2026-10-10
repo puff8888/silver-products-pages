@@ -167,7 +167,7 @@ export default function Tenants() {
     }
   };
 
-  const saveStoreToken = async () => {
+  const saveStoreToken = async (provider = 'shopify_admin_token') => {
     if (!selected || tokenValue.trim().length < 8) {
       setPanelMsg({ type: 'err', text: 'token สั้นเกินไป (ต้องยาวอย่างน้อย 8 ตัวอักษร)' });
       return;
@@ -177,7 +177,7 @@ export default function Tenants() {
     try {
       const data = await callJson('/api/tenants/credentials', {
         tenant_id: selected.id,
-        provider: 'shopify_admin_token',
+        provider,
         value: tokenValue.trim(),
       });
       setTokenValue('');
@@ -492,9 +492,29 @@ export default function Tenants() {
                 placeholder="shpat_…"
                 className="h-10 min-w-[240px] flex-1 rounded-xl border border-border bg-background/60 px-4 font-mono text-sm"
               />
-              <button type="button" disabled={panelBusy} onClick={saveStoreToken} className="inline-flex h-10 items-center rounded-xl border border-silver-800/80 bg-glass-light px-5 text-sm font-semibold text-foreground hover:border-silver-600/80 transition-colors disabled:opacity-50">
+              <button type="button" disabled={panelBusy} onClick={() => saveStoreToken('shopify_admin_token')} className="inline-flex h-10 items-center rounded-xl border border-silver-800/80 bg-glass-light px-5 text-sm font-semibold text-foreground hover:border-silver-600/80 transition-colors disabled:opacity-50">
                 เก็บ token
               </button>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="text-sm font-bold text-foreground">Storefront API token (public/private)</h3>
+              <p className="mt-1 text-xs text-muted leading-relaxed">
+                ใช้กับ Storefront API แบบ <code className="font-mono">X-Shopify-Storefront-Access-Token</code> — ระบบจะเลือกใช้
+                เมื่อ Admin token ไม่ผ่าน หรือไม่มี (ราคาแบบรวม VAT จะได้จาก <code className="font-mono">inContext(country: TH)</code>)
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <input
+                  type="password"
+                  value={tokenValue}
+                  onChange={(e) => setTokenValue(e.target.value)}
+                  placeholder="Storefront token…"
+                  className="h-10 min-w-[240px] flex-1 rounded-xl border border-border bg-background/60 px-4 font-mono text-sm"
+                />
+                <button type="button" disabled={panelBusy} onClick={() => saveStoreToken('shopify_storefront_token')} className="inline-flex h-10 items-center rounded-xl border border-silver-800/80 bg-glass-light px-5 text-sm font-semibold text-foreground hover:border-silver-600/80 transition-colors disabled:opacity-50">
+                  เก็บ Storefront token
+                </button>
+              </div>
             </div>
 
             {credentials && Object.keys(credentials).length > 0 && (
