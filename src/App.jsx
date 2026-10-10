@@ -117,6 +117,7 @@ export default function App() {
               <Route path="/swatchify" element={<SwatchifyPage />} />
               <Route path="/stores" element={<StoreDirectory />} />
               <Route path="/sell" element={<SellPage />} />
+              <Route path="/onboard" element={<SellPage />} />
 
               <Route path="*" element={
                 <main className="flex-1 flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">

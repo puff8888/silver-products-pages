@@ -1,4 +1,5 @@
 import { slugify, isValidSlug } from '../../shared/store.js';
+import { provisionStoreDomain } from '../../shared/cloudflare.js';
 import { getSessionUser, userStores, canAccessStore } from '../../shared/auth.js';
 
 /**
@@ -156,10 +157,11 @@ export async function onRequestPost(context) {
       const id = typeof body.id === 'string' ? body.id.trim() : '';
       if (!id) return json({ error: 'Invalid tenant id' }, 400);
 
-      const { results } = await env.DB.prepare('SELECT id FROM tenants WHERE id = ? LIMIT 1').bind(id).all();
+      const { results } = await env.DB.prepare('SELECT id, slug FROM tenants WHERE id = ? LIMIT 1').bind(id).all();
       if (!results || results.length === 0) {
         return json({ error: 'Tenant not found' }, 404);
       }
+      const tenantSlug = results[0].slug || results[0].id;
 
       await env.DB.prepare(
         `UPDATE tenants SET status = 'active', approved_at = COALESCE(approved_at, datetime('now')) WHERE id = ?`
@@ -179,11 +181,18 @@ export async function onRequestPost(context) {
       }
 
       const { results: updated, migrated } = await selectTenants(env, { where: 'WHERE t.id = ?', binds: [id] });
+
+      // Auto-provision the store's public domain (<slug>.<root> + DNS CNAME).
+      // Degrades to {status:'skipped'} when CF_* env is not set, so approval
+      // never fails because of missing Cloudflare credentials.
+      const domain = await provisionStoreDomain(env, tenantSlug);
+
       return json({
         status: 'approved',
         seeded_templates: seeds.length,
         tenant: updated?.[0] || null,
         migration_0003_applied: migrated,
+        domain,
       });
     }
 

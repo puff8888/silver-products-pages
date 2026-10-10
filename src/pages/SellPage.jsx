@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 /**
@@ -57,8 +57,32 @@ const TIERS = [
 const FIELD = 'h-11 w-full rounded-xl border border-border bg-background/60 px-4 text-sm text-foreground placeholder:text-muted/60 outline-none focus:border-foreground/50 transition-colors';
 
 export default function SellPage() {
-  const [form, setForm] = useState({ brand: '', contact: '', note: '', website: '' });
+  const [form, setForm] = useState({ brand: '', contact: '', note: '', website: '', slug: '' });
   const [state, setState] = useState({ busy: false, ok: false, error: null });
+  const [slugStatus, setSlugStatus] = useState({ state: 'idle', text: '' });
+  const slugTimer = useRef();
+
+  const checkSlug = (value) => {
+    setForm((f) => ({ ...f, slug: value }));
+    const v = value.trim().toLowerCase();
+    clearTimeout(slugTimer.current);
+    if (!v) {
+      setSlugStatus({ state: 'idle', text: '' });
+      return;
+    }
+    setSlugStatus({ state: 'checking', text: 'กำลังตรวจชื่อ…' });
+    slugTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/check-slug?slug=${encodeURIComponent(v)}`);
+        const d = await res.json();
+        if (d.available) setSlugStatus({ state: 'ok', text: `ใช้ได้ → ${d.domain}` });
+        else if (d.reason === 'invalid') setSlugStatus({ state: 'err', text: 'ใช้ a-z, 0-9, ขีดกลาง (2-32 ตัว)' });
+        else setSlugStatus({ state: 'err', text: 'ชื่อนี้ถูกใช้แล้ว — เลือกชื่ออื่น' });
+      } catch {
+        setSlugStatus({ state: 'idle', text: '' });
+      }
+    }, 350);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -72,11 +96,14 @@ export default function SellPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setState({ busy: false, ok: true, error: null });
-      setForm({ brand: '', contact: '', note: '', website: '' });
+      setForm({ brand: '', contact: '', note: '', website: '', slug: '' });
+      setSlugStatus({ state: 'idle', text: '' });
     } catch (err) {
       const map = {
         invalid_brand: 'กรอกชื่อร้านอย่างน้อย 2 ตัวอักษร',
         invalid_contact: 'กรอกช่องทางติดต่อ (อีเมล/เบอร์/LINE) อย่างน้อย 5 ตัวอักษร',
+        invalid_slug: 'ชื่อโดเมนใช้ได้แค่ a-z, 0-9 และขีดกลาง',
+        slug_taken: 'ชื่อร้าน/โดเมนนี้ถูกใช้แล้ว — เลือกชื่ออื่น',
         too_many_requests: 'ส่งคำขอถี่เกินไป กรุณารอสักครู่',
       };
       setState({ busy: false, ok: false, error: map[err.message] || `ส่งไม่สำเร็จ: ${err.message}` });
@@ -155,6 +182,32 @@ export default function SellPage() {
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold text-muted">ชื่อร้าน · Brand *</span>
               <input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={FIELD} placeholder="เช่น คาเฟ่อบอุ่น" required />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-muted">โดเมนของร้าน (ไม่บังคับ) · Slug</span>
+              <span className="flex items-center gap-2">
+                <input
+                  value={form.slug}
+                  onChange={(e) => checkSlug(e.target.value)}
+                  className={FIELD}
+                  placeholder="cafe"
+                />
+                <span className="shrink-0 font-mono text-xs text-muted">.pkkoko.store</span>
+              </span>
+              {slugStatus.state !== 'idle' && (
+                <span
+                  className={`mt-1.5 inline-block text-[11px] font-semibold ${
+                    slugStatus.state === 'ok'
+                      ? 'text-success'
+                      : slugStatus.state === 'err'
+                        ? 'text-destructive'
+                        : 'text-muted'
+                  }`}
+                >
+                  {slugStatus.state === 'ok' ? '✓ ' : slugStatus.state === 'err' ? '✕ ' : ''}
+                  {slugStatus.text}
+                </span>
+              )}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold text-muted">ช่องทางติดต่อ · Contact *</span>
