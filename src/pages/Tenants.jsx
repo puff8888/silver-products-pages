@@ -37,6 +37,12 @@ export default function Tenants() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  // Per-store admin panel (branding + per-store Shopify token)
+  const [selected, setSelected] = useState(null);
+  const [panelForm, setPanelForm] = useState({});
+  const [tokenValue, setTokenValue] = useState('');
+  const [panelMsg, setPanelMsg] = useState(null);
+  const [panelBusy, setPanelBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,6 +111,90 @@ export default function Tenants() {
 
   // The list that is actually displayed. Demo entries only ever appear in demo
   // mode, so real data can never be replaced by local placeholders.
+  const openStore = (tenant) => {
+    setSelected(tenant);
+    setTokenValue('');
+    setPanelMsg(null);
+    setPanelForm({
+      name: tenant.name || '',
+      tagline: tenant.tagline || '',
+      brand_color: tenant.brand_color || '#8e8e93',
+      logo_url: tenant.logo_url || '',
+      shopify_domain: tenant.shopify_domain || '',
+      plan: tenant.plan || 'starter',
+      is_public: !!tenant.is_public,
+    });
+  };
+
+  const callJson = async (path, body) => {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  };
+
+  const saveStoreSettings = async () => {
+    if (!selected) return;
+    setPanelBusy(true);
+    setPanelMsg(null);
+    try {
+      await callJson('/api/tenants', {
+        action: 'update',
+        id: selected.id,
+        ...panelForm,
+        is_public: panelForm.is_public,
+      });
+      setPanelMsg({ type: 'ok', text: 'บันทึกการตั้งค่าร้านแล้ว' });
+      await load();
+    } catch (err) {
+      setPanelMsg({ type: 'err', text: `บันทึกไม่สำเร็จ: ${err.message}` });
+    } finally {
+      setPanelBusy(false);
+    }
+  };
+
+  const saveStoreToken = async () => {
+    if (!selected || tokenValue.trim().length < 8) {
+      setPanelMsg({ type: 'err', text: 'token สั้นเกินไป (ต้องยาวอย่างน้อย 8 ตัวอักษร)' });
+      return;
+    }
+    setPanelBusy(true);
+    setPanelMsg(null);
+    try {
+      const data = await callJson('/api/tenants/credentials', {
+        tenant_id: selected.id,
+        provider: 'shopify_admin_token',
+        value: tokenValue.trim(),
+      });
+      setTokenValue('');
+      setPanelMsg({ type: 'ok', text: `เก็บ token แบบเข้ารหัสแล้ว (${data.hint}) — ระบบอ่านกลับไม่ได้` });
+      await load();
+    } catch (err) {
+      setPanelMsg({ type: 'err', text: `เก็บ token ไม่สำเร็จ: ${err.message}` });
+    } finally {
+      setPanelBusy(false);
+    }
+  };
+
+  const seedStore = async (tenant) => {
+    setPanelBusy(true);
+    setPanelMsg(null);
+    try {
+      const data = await callJson('/api/tenants', { action: 'approve', id: tenant.id });
+      setPanelMsg({ type: 'ok', text: `Seed สำเร็จ — เทมเพลต ${data.seeded_templates} รายการ` });
+      await load();
+      if (selected && selected.id === tenant.id) setSelected(data.tenant || selected);
+    } catch (err) {
+      setPanelMsg({ type: 'err', text: `Seed ไม่สำเร็จ: ${err.message}` });
+    } finally {
+      setPanelBusy(false);
+    }
+  };
+
   const tenants = live === false ? demoTenants : liveTenants;
   const pending = tenants.filter((t) => t.status === 'pending');
   const active = tenants.filter((t) => t.status !== 'pending');
@@ -229,34 +319,167 @@ export default function Tenants() {
                 <th className="pb-3 pr-4 font-semibold">Shopify</th>
                 <th className="pb-3 pr-4 font-semibold">Status</th>
                 <th className="pb-3 pr-4 font-semibold">Templates</th>
-                <th className="pb-3 font-semibold">Approved</th>
+                <th className="pb-3 pr-4 font-semibold">Approved</th>
+                <th className="pb-3 font-semibold">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               {active.map((t) => (
                 <tr key={t.id} className="border-t border-border/60">
-                  <td className="py-3 pr-4 font-semibold text-foreground">{t.name}</td>
+                  <td className="py-3 pr-4 font-semibold text-foreground">
+                    {t.name}
+                    <span className="block font-mono text-[11px] font-normal text-muted">{t.slug}</span>
+                  </td>
                   <td className="py-3 pr-4 font-mono text-xs text-muted">{t.shopify_domain || '—'}</td>
                   <td className="py-3 pr-4">
                     <span className="rounded-full bg-success/10 border border-success/20 px-2.5 py-1 text-[11px] font-bold text-success">
                       {t.status}
                     </span>
                   </td>
-                  <td className="py-3 pr-4 tabular-nums text-muted">{t.templates ?? '—'}</td>
-                  <td className="py-3 text-xs text-muted">
+                  <td className="py-3 pr-4 tabular-nums text-muted">
+                    {t.templates ?? '—'}
+                    {t.credentials_set > 0 && (
+                      <span className="ml-2 rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[10px] font-bold text-warning">
+                        token {t.credentials_set}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 pr-4 text-xs text-muted">
                     {t.approved_at ? new Date(t.approved_at.replace(' ', 'T') + 'Z').toLocaleDateString() : '—'}
+                  </td>
+                  <td className="py-3">
+                    <div className="flex flex-wrap gap-2">
+                      {(!t.templates || t.templates === 0) && (
+                        <button
+                          type="button"
+                          disabled={panelBusy || live === false}
+                          onClick={() => seedStore(t)}
+                          className="inline-flex h-9 items-center rounded-lg bg-metallic-button px-3 text-[12px] font-bold text-background border border-silver-400/30 disabled:opacity-40"
+                        >
+                          Approve + Seed
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openStore(t)}
+                        className="inline-flex h-9 items-center rounded-lg border border-silver-800/80 bg-glass-light px-3 text-[12px] font-semibold text-foreground hover:border-silver-600/80 transition-colors"
+                      >
+                        ตั้งค่าร้าน
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {!loading && active.length === 0 && (
                 <tr className="border-t border-border/60">
-                  <td colSpan="5" className="py-4 text-sm text-muted">No active clients yet — approve one above.</td>
+                  <td colSpan="6" className="py-4 text-sm text-muted">No active clients yet — approve one above.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </MetalCard>
+
+      {/* ── Per-store settings: branding + Shopify token (admin) ── */}
+      {selected && (
+        <MetalCard className="mt-6 p-6 sm:p-8">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-bold text-foreground">
+                ตั้งค่าร้าน · {selected.name}
+              </h2>
+              <p className="mt-1 font-mono text-[11px] text-muted">
+                {selected.slug} · {selected.id}
+              </p>
+            </div>
+            <button type="button" onClick={() => setSelected(null)} className="text-xs text-muted underline hover:text-foreground">
+              ปิด
+            </button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-silver-200">ชื่อร้าน · Brand</span>
+              <input value={panelForm.name || ''} onChange={(e) => setPanelForm({ ...panelForm, name: e.target.value })} className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 text-sm" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-silver-200">Shopify domain</span>
+              <input value={panelForm.shopify_domain || ''} onChange={(e) => setPanelForm({ ...panelForm, shopify_domain: e.target.value })} placeholder="brand.myshopify.com" className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 text-sm font-mono" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-silver-200">แท็กไลน์ · Tagline</span>
+              <input value={panelForm.tagline || ''} onChange={(e) => setPanelForm({ ...panelForm, tagline: e.target.value })} className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 text-sm" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-silver-200">โลโก้ · Logo URL</span>
+              <input value={panelForm.logo_url || ''} onChange={(e) => setPanelForm({ ...panelForm, logo_url: e.target.value })} placeholder="https://…/logo.png" className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 text-sm font-mono" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-silver-200">สีแบรนด์ · Brand colour</span>
+              <span className="flex items-center gap-3">
+                <input type="color" value={panelForm.brand_color || '#8e8e93'} onChange={(e) => setPanelForm({ ...panelForm, brand_color: e.target.value })} className="h-11 w-14 rounded-lg border border-border bg-background/60" />
+                <input value={panelForm.brand_color || ''} onChange={(e) => setPanelForm({ ...panelForm, brand_color: e.target.value })} className="h-11 flex-1 rounded-xl border border-border bg-background/60 px-4 font-mono text-sm" />
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-silver-200">แพ็กเกจ · Plan</span>
+              <select value={panelForm.plan || 'starter'} onChange={(e) => setPanelForm({ ...panelForm, plan: e.target.value })} className="h-11 w-full rounded-xl border border-border bg-background/60 px-4 text-sm">
+                <option value="starter">starter</option>
+                <option value="growth">growth</option>
+                <option value="pro">pro</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-3 sm:col-span-2">
+              <input type="checkbox" checked={!!panelForm.is_public} onChange={(e) => setPanelForm({ ...panelForm, is_public: e.target.checked })} className="size-4" />
+              <span className="text-sm text-muted">แสดงร้านนี้ในไดเรกทอรีสาธารณะ (/stores)</span>
+            </label>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button type="button" disabled={panelBusy} onClick={saveStoreSettings} className="inline-flex h-10 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+              บันทึกการตั้งค่า
+            </button>
+            {(!selected.templates || selected.templates === 0) && (
+              <button type="button" disabled={panelBusy} onClick={() => seedStore(selected)} className="inline-flex h-10 items-center rounded-xl bg-metallic-button px-5 text-[13px] font-bold text-background border border-silver-400/30 disabled:opacity-50">
+                Approve + Seed (2 เทมเพลต)
+              </button>
+            )}
+          </div>
+
+          <div className="mt-6 border-t border-silver-900/70 pt-5">
+            <h3 className="text-sm font-bold text-foreground">Shopify Admin token (เข้ารหัสก่อนเก็บ)</h3>
+            <p className="mt-1 text-xs text-muted leading-relaxed">
+              เก็บด้วย AES-256-GCM — ระบบอ่านค่ากลับมาแสดงไม่ได้ (แสดงได้แค่ 4 ตัวท้าย)
+              {selected.credentials_set > 0 && ' · มี token อยู่แล้ว การบันทึกจะทับของเดิม'}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <input
+                type="password"
+                value={tokenValue}
+                onChange={(e) => setTokenValue(e.target.value)}
+                placeholder="shpat_…"
+                className="h-10 min-w-[240px] flex-1 rounded-xl border border-border bg-background/60 px-4 font-mono text-sm"
+              />
+              <button type="button" disabled={panelBusy} onClick={saveStoreToken} className="inline-flex h-10 items-center rounded-xl border border-silver-800/80 bg-glass-light px-5 text-sm font-semibold text-foreground hover:border-silver-600/80 transition-colors disabled:opacity-50">
+                เก็บ token
+              </button>
+            </div>
+          </div>
+
+          {panelMsg && (
+            <p
+              className={`mt-4 rounded-xl px-3 py-2 text-xs ${
+                panelMsg.type === 'ok'
+                  ? 'border border-success/30 bg-success/10 text-success'
+                  : 'border border-destructive/30 bg-destructive/10 text-destructive'
+              }`}
+              role={panelMsg.type === 'ok' ? 'status' : 'alert'}
+            >
+              {panelMsg.type === 'ok' ? '✓ ' : '✕ '}{panelMsg.text}
+            </p>
+          )}
+        </MetalCard>
+      )}
     </AdminShell>
   );
 }
