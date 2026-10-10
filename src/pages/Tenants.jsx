@@ -43,6 +43,7 @@ export default function Tenants() {
   const [tokenValue, setTokenValue] = useState('');
   const [panelMsg, setPanelMsg] = useState(null);
   const [panelBusy, setPanelBusy] = useState(false);
+  const [credentials, setCredentials] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +116,12 @@ export default function Tenants() {
     setSelected(tenant);
     setTokenValue('');
     setPanelMsg(null);
+    setCredentials(null);
+    // Which credentials exist (hint only — values are never readable)
+    fetch(`/api/tenants/credentials?tenant_id=${encodeURIComponent(tenant.id)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setCredentials(data ? data.credentials : null))
+      .catch(() => setCredentials(null));
     setPanelForm({
       name: tenant.name || '',
       tagline: tenant.tagline || '',
@@ -489,6 +496,24 @@ export default function Tenants() {
                 เก็บ token
               </button>
             </div>
+
+            {credentials && Object.keys(credentials).length > 0 && (
+              <ul className="mt-3 space-y-1 text-[11px] text-muted">
+                {Object.entries(credentials).map(([provider, info]) => (
+                  <li key={provider} className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-foreground/80">{provider}</span>
+                    <span className="rounded-full border border-silver-900/70 bg-background/60 px-2 py-0.5">ท้าย {info.hint}</span>
+                    <span>อัปเดต {info.updated_at}</span>
+                    <span className="text-muted/70">
+                      — เทียบ 4 ตัวท้ายนี้กับ token จริงของคุณ ถ้าไม่ตรงแปลว่าคัดลอกมาไม่ครบ
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {credentials && Object.keys(credentials).length === 0 && (
+              <p className="mt-3 text-[11px] text-muted">ยังไม่มี token เก็บไว้สำหรับร้านนี้</p>
+            )}
           </div>
 
           {panelMsg && (
